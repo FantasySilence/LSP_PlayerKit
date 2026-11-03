@@ -76,6 +76,15 @@ def main() -> None:
                 "   ? document.querySelector('.rose g').getAttribute('style') : ''})",
             )
 
+            target.evaluate_js("document.querySelectorAll('.secondary-actions .btn')[0].click()")
+            time.sleep(0.8)
+            report(
+                target,
+                "PEARL_SAVE_DEFAULT",
+                "({toast: (document.querySelector('.toast.success') || {}).innerText || '',"
+                " buttons: document.querySelectorAll('.secondary-actions .btn').length})",
+            )
+
             target.evaluate_js("document.querySelectorAll('.data-table th')[0].click()")
             time.sleep(0.4)
             report(
@@ -127,6 +136,50 @@ def main() -> None:
                 " valid: !!document.querySelector('.detail .mono'),"
                 " title: (document.querySelector('.titles strong') || {}).innerText})",
             )
+
+            target.evaluate_js("document.querySelectorAll('.secondary-actions .btn')[0].click()")
+            time.sleep(0.8)
+            report(
+                target,
+                "BORDER_SAVE_DEFAULT",
+                "({toast: (document.querySelector('.toast.success') || {}).innerText || '',"
+                " buttons: document.querySelectorAll('.secondary-actions .btn').length})",
+            )
+
+            target.evaluate_js("document.querySelectorAll('.rail-item')[2].click()")
+            time.sleep(1.2)
+            target.evaluate_js("document.querySelectorAll('.source-actions .btn')[1].click()")
+            time.sleep(1.5)
+            report(
+                target,
+                "MATERIAL_CALC",
+                "({rows: document.querySelectorAll('.data-table tbody tr').length,"
+                " stats: Array.from(document.querySelectorAll('.stat-value')).map((e) => e.innerText),"
+                " name: (document.querySelector('.data-table tbody tr td') || {}).innerText,"
+                " title: (document.querySelector('.titles strong') || {}).innerText,"
+                " textarea: !!document.querySelector('textarea'),"
+                " align: getComputedStyle(document.querySelector('.data-table th')).textAlign,"
+                " empty: !!document.querySelector('.table-wrap .empty')})",
+            )
+
+            target.evaluate_js(
+                "(function () {"
+                "  const area = document.querySelector('textarea');"
+                "  area.value = 'bad line here';"
+                "  area.dispatchEvent(new Event('input', {bubbles: true}));"
+                "  document.querySelector('.actions .primary').click();"
+                "})()"
+            )
+            time.sleep(0.9)
+            report(
+                target,
+                "MATERIAL_BAD_INPUT",
+                "({toast: (document.querySelector('.toast.error') || {}).innerText || '',"
+                " empty: !!document.querySelector('.table-wrap .empty')})",
+            )
+
+            target.evaluate_js("document.querySelectorAll('.rail-item')[0].click()")
+            time.sleep(1.2)
 
             target.evaluate_js("document.querySelector('.settings-btn').click()")
             time.sleep(1)

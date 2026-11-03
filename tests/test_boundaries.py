@@ -11,6 +11,7 @@ import ast
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parents[1] / "src" / "lspkit" / "tools"
+TOOL_IDS = ("pearl", "border", "material")
 
 
 def _imports(path: Path) -> set[str]:
@@ -25,17 +26,19 @@ def _imports(path: Path) -> set[str]:
 
 
 def test_tools_do_not_import_each_other():
-    for tool in ("pearl", "border"):
-        other = "border" if tool == "pearl" else "pearl"
+    for tool in TOOL_IDS:
         for file in (TOOLS / tool).rglob("*.py"):
             imports = _imports(file)
-            for module in imports:
-                assert f"tools.{other}" not in module, f"{file} 跨界导入了 {module}"
-                assert f"lspkit.tools.{other}" not in module
+            for other in TOOL_IDS:
+                if other == tool:
+                    continue
+                for module in imports:
+                    assert f"tools.{other}" not in module, f"{file} 跨界导入了 {module}"
+                    assert f"lspkit.tools.{other}" not in module
 
 
 def test_core_is_pure():
-    for tool in ("pearl", "border"):
+    for tool in TOOL_IDS:
         for file in (TOOLS / tool / "core").rglob("*.py"):
             imports = _imports(file)
             for module in imports:

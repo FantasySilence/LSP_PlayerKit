@@ -34,7 +34,7 @@ def test_app_state_lists_tools(api):
     result = api.app_state()
     assert result["ok"] is True
     ids = [tool["id"] for tool in result["data"]["tools"]]
-    assert ids == ["pearl", "border"]
+    assert ids == ["pearl", "border", "material"]
 
 
 def test_pearl_calculate_and_decode(api):
@@ -101,6 +101,20 @@ def test_settings_roundtrip_and_validation(api):
     assert reset["data"]["maxTnt"] == 3640
 
 
+def test_pearl_panel_defaults_roundtrip(api):
+    data = api.settings_get("pearl")["data"]
+    assert data["targetX"] == 0
+    assert data["targetZ"] == 0
+    assert data["fireMode"] == "flat"
+
+    saved = api.settings_save(
+        "pearl", {**data, "targetX": 10000, "targetZ": 10000, "fireMode": "eject"}
+    )
+    assert saved["ok"] is True
+    assert api.settings_get("pearl")["data"]["targetX"] == 10000
+    assert api.settings_get("pearl")["data"]["fireMode"] == "eject"
+
+
 def test_storage_info(api):
     info = api.storage_info()["data"]
     assert "path" in info and "source" in info
@@ -161,3 +175,62 @@ def test_import_legacy_pearl_file(api, tmp_path):
     assert result["data"]["migrated"] is True
     assert result["data"]["values"]["maxTnt"] == 1234
     assert result["data"]["values"]["originX"] == 1.5
+
+
+def test_material_convert(api):
+    text = "\n".join(
+        [
+            "minecraft:white_wool 1728",
+            "minecraft:stone, 100000",
+            "minecraft:stone 1,000",
+            "# comment",
+            "unparsed line",
+        ]
+    )
+    result = api.tool_call("material", "convert", {"text": text})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    assert data["totals"]["kinds"] == 2
+    assert data["totals"]["perBox"] == 1728
+    assert data["totals"]["boxesNeeded"] == 60
+    assert data["skipped"] == 1
+    assert data["warnings"][0]["line"] == 5
+
+    stone = next(row for row in data["items"] if row["name"] == "minecraft:stone")
+    assert (stone["count"], stone["shulkers"], stone["stacks"], stone["items"]) == (
+        101000,
+        58,
+        12,
+        8,
+    )
+
+    wool = next(row for row in data["items"] if row["name"] == "minecraft:white_wool")
+    assert (wool["shulkers"], wool["stacks"], wool["items"]) == (1, 0, 0)
+
+
+def test_material_rejects_empty_input(api):
+    blank = api.tool_call("material", "convert", {"text": "   \n\n"})
+    assert blank["ok"] is False
+    assert blank["error"]["code"] == "INVALID_INPUT"
+
+    nothing = api.tool_call("material", "convert", {"text": "no numbers here"})
+    assert nothing["ok"] is False
+    assert nothing["error"]["code"] == "NO_ENTRIES"
+
+
+def test_material_settings_change_capacity(api):
+    current = api.settings_get("material")["data"]
+    assert current == {"stackSize": 64, "shulkerSlots": 27}
+
+    saved = api.settings_save("material", {**current, "stackSize": 16, "shulkerSlots": 1})
+    assert saved["ok"] is True
+
+    result = api.tool_call("material", "convert", {"text": "minecraft:stone 100"})
+    row = result["data"]["items"][0]
+    assert result["data"]["totals"]["perBox"] == 16
+    assert (row["shulkers"], row["stacks"], row["items"]) == (6, 0, 4)
+    assert result["data"]["totals"]["boxesNeeded"] == 7
+
+    reset = api.settings_reset("material")
+    assert reset["data"] == {"stackSize": 64, "shulkerSlots": 27}
