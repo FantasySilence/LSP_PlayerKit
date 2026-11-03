@@ -12,7 +12,7 @@ from lspkit.platform.schema import Field, Group, SettingsSchema
 from .defaults import DEFAULT_SETTINGS as D
 
 SCHEMA = SettingsSchema(
-    version=2,
+    version=3,
     groups=[
         Group(
             "basic",
@@ -22,6 +22,18 @@ SCHEMA = SettingsSchema(
                 Field("tntPerUnit", "pearl.field.tntPerUnit", "int", D["tntPerUnit"], 1, 4096, 10, unit="个/阵列"),
                 Field("originX", "pearl.field.originX", "float", D["originX"], digits=4),
                 Field("originZ", "pearl.field.originZ", "float", D["originZ"], digits=4),
+                Field("targetX", "pearl.field.targetX", "float", D["targetX"], digits=4),
+                Field("targetZ", "pearl.field.targetZ", "float", D["targetZ"], digits=4),
+                Field(
+                    "fireMode",
+                    "pearl.field.mode",
+                    "enum",
+                    D["fireMode"],
+                    options=[
+                        {"value": "flat", "label": "pearl.mode.flat"},
+                        {"value": "eject", "label": "pearl.mode.eject"},
+                    ],
+                ),
                 Field("ejectionAvailable", "pearl.field.ejectionAvailable", "bool", D["ejectionAvailable"]),
             ],
         ),

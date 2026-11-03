@@ -1,9 +1,9 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
 import { t } from '../../platform/i18n'
-import { loadSettings } from '../../platform/settings'
+import { clone, getSettings, loadSettings, saveSettings } from '../../platform/settings'
 import { notify, notifyError } from '../../platform/toast'
 import type { BorderRow, ToolDef } from '../../platform/types'
 import DataTable from '../../ui/DataTable.vue'
@@ -62,6 +62,23 @@ async function applySettings() {
   targetZ.value = data.targetZ
   flightTime.value = data.flightTime
   directionMode.value = data.directionMode
+}
+
+async function saveAsDefault() {
+  try {
+    const data = clone(getSettings(props.tool.id))
+    data.originX = toNumber(originX.value, '炮口 X')
+    data.originY = toNumber(originY.value, '炮口 Y')
+    data.originZ = toNumber(originZ.value, '炮口 Z')
+    data.targetX = toNumber(targetX.value, '目标 X')
+    data.targetY = toNumber(targetY.value, '目标 Y')
+    data.targetZ = toNumber(targetZ.value, '目标 Z')
+    data.flightTime = toNumber(flightTime.value, '预计飞行时间')
+    await saveSettings(props.tool.id, data)
+    notify('success', t('action.defaultSaved'))
+  } catch (error) {
+    notifyError(error)
+  }
 }
 
 async function calculate() {
@@ -251,8 +268,14 @@ onMounted(async () => {
           <button class="btn primary" :disabled="busy" @click="calculate">
             {{ busy ? t('status.calculating') : t('border.action.calculate') }}
           </button>
-          <button class="btn ghost" :title="t('pearl.msg.loadDefaults')" @click="applySettings">
-            ⟲
+        </div>
+
+        <div class="secondary-actions">
+          <button class="btn sm" @click="saveAsDefault">
+            {{ t('action.saveAsDefault') }}
+          </button>
+          <button class="btn sm" @click="applySettings">
+            {{ t('action.applyDefaults') }}
           </button>
         </div>
 
@@ -439,6 +462,16 @@ onMounted(async () => {
 }
 
 .actions .primary {
+  flex: 1;
+}
+
+.secondary-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.secondary-actions .btn {
   flex: 1;
 }
 

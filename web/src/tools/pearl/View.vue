@@ -1,9 +1,9 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
 import { t } from '../../platform/i18n'
-import { loadSettings } from '../../platform/settings'
+import { clone, getSettings, loadSettings, saveSettings } from '../../platform/settings'
 import { notify, notifyError } from '../../platform/toast'
 import type { ColumnDef, PearlRow, ToolDef } from '../../platform/types'
 import CompassRose from '../../ui/CompassRose.vue'
@@ -65,9 +65,27 @@ async function applySettings() {
   const data = await loadSettings(props.tool.id)
   originX.value = data.originX
   originZ.value = data.originZ
+  targetX.value = data.targetX ?? 0
+  targetZ.value = data.targetZ ?? 0
   maxTnt.value = data.maxTnt
   ejectionAvailable.value = Boolean(data.ejectionAvailable)
-  if (!ejectionAvailable.value) mode.value = 'flat'
+  mode.value = data.fireMode === 'eject' && ejectionAvailable.value ? 'eject' : 'flat'
+}
+
+async function saveAsDefault() {
+  try {
+    const data = clone(getSettings(props.tool.id))
+    data.originX = toNumber(originX.value, '炮口 X')
+    data.originZ = toNumber(originZ.value, '炮口 Z')
+    data.targetX = toNumber(targetX.value, '目标 X')
+    data.targetZ = toNumber(targetZ.value, '目标 Z')
+    data.maxTnt = toNumber(maxTnt.value, '最大 TNT')
+    data.fireMode = mode.value
+    await saveSettings(props.tool.id, data)
+    notify('success', t('action.defaultSaved'))
+  } catch (error) {
+    notifyError(error)
+  }
 }
 
 async function calculate() {
@@ -257,8 +275,14 @@ onMounted(async () => {
           <button class="btn" :disabled="busy || !canSimulate" @click="simulate">
             {{ t('pearl.action.trace') }}
           </button>
-          <button class="btn ghost" :title="t('pearl.msg.loadDefaults')" @click="applySettings">
-            ⟲
+        </div>
+
+        <div class="secondary-actions">
+          <button class="btn sm" @click="saveAsDefault">
+            {{ t('action.saveAsDefault') }}
+          </button>
+          <button class="btn sm" @click="applySettings">
+            {{ t('action.applyDefaults') }}
           </button>
         </div>
       </div>
@@ -379,6 +403,16 @@ onMounted(async () => {
 }
 
 .actions .primary {
+  flex: 1;
+}
+
+.secondary-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.secondary-actions .btn {
   flex: 1;
 }
 

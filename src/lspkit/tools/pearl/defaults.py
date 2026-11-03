@@ -12,6 +12,9 @@ DEFAULT_SETTINGS = {
     "tntPerUnit": 260,
     "originX": -31.9375,
     "originZ": -8.0625,
+    "targetX": 0.0,
+    "targetZ": 0.0,
+    "fireMode": "flat",
     "ejectionAvailable": True,
     "flat": {
         "xzMotion": 0.6025678975452011,
