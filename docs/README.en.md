@@ -23,6 +23,7 @@ Using **(10000, 10000)** as the destination: fill in the muzzle X/Z, target X/Z 
 - The result table is sorted by flight time ascending. Click the **Distance error** or **Flight time** header to re-sort; click again to reverse.
 - Selecting a row shows the blue/red TNT array breakdown at the bottom, e.g. `20 + 10 + 2 + 1 = 33`.
 - **Simulate** steps the pearl tick by tick for the selected configuration; the trace table highlights the expected arrival tick in orange.
+- **Save as default** at the bottom of the panel stores the current muzzle, target and launch mode; **Fill from defaults** restores them.
 
 ![2-trace.png](../README_img/2-trace.png)
 
@@ -34,6 +35,8 @@ The result table lists three TNT charges per tick. Selecting a row shows:
 
 - minor (remaining TNT) and major (780-charge) breakdowns for each of the three TNT
 - predicted landing coordinates and the three-axis momentum
+
+**Save as default** remembers the current muzzle, destination and flight time; **Fill from defaults** restores them.
 
 ![5-border.png](../README_img/5-border.png)
 
