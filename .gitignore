@@ -8,9 +8,9 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+/build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- LSP PlayerKit ---
+data/
+web/node_modules/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
