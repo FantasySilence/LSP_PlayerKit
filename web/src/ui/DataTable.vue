@@ -11,6 +11,7 @@ const props = defineProps<{
   sortable?: string[]
   defaultSort?: { key: string; dir: 'asc' | 'desc' }
   highlightIndex?: number | null
+  emptyKey?: string
 }>()
 
 const emit = defineEmits<{ (e: 'select', index: number): void }>()
@@ -107,7 +108,7 @@ function display(value: unknown, column: ColumnDef): string {
         </tr>
       </tbody>
     </table>
-    <div v-if="!rows.length" class="empty">{{ t('table.empty') }}</div>
+    <div v-if="!rows.length" class="empty">{{ t(props.emptyKey ?? 'table.empty') }}</div>
   </div>
 </template>
 

@@ -85,3 +85,29 @@ export interface BorderRow {
   dirCode: string
   dirLabel: string
 }
+
+export interface MaterialRow {
+  name: string
+  count: number
+  shulkers: number
+  stacks: number
+  items: number
+}
+
+export interface MaterialTotals {
+  kinds: number
+  count: number
+  shulkers: number
+  stacks: number
+  items: number
+  perBox: number
+  boxesNeeded: number
+}
+
+export interface MaterialResult {
+  items: MaterialRow[]
+  totals: MaterialTotals
+  warnings: { line: number; text: string }[]
+  skipped: number
+  truncated: boolean
+}

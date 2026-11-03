@@ -29,6 +29,8 @@ APP_DEFAULTS = {
     "window": {},
 }
 
+MAX_TEXT_FILE_BYTES = 5 * 1024 * 1024
+
 
 class Api:
     def __init__(self, runtime: Runtime, registry: Registry) -> None:
@@ -154,6 +156,65 @@ class Api:
     def storage_import_bundle(self) -> dict:
         return envelope(self._storage.import_bundle)
 
+    # ------ 文件 ------ #
+    def file_open_text(self) -> dict:
+        return envelope(self._open_text)
+
+    def _open_text(self) -> dict:
+        import webview
+
+        window = self._rt.window
+        if window is None:
+            raise AppError("NO_WINDOW", "窗口尚未就绪")
+        result = window.create_file_dialog(
+            webview.FileDialog.OPEN,
+            file_types=("文本与表格 (*.txt;*.csv;*.tsv;*.log)", "所有文件 (*.*)"),
+        )
+        if not result:
+            return {"cancelled": True}
+        path = Path(result[0] if isinstance(result, (list, tuple)) else result)
+        try:
+            size = path.stat().st_size
+        except OSError as exc:
+            raise AppError("INVALID_FILE", "无法读取该文件", str(exc)) from exc
+        if size > MAX_TEXT_FILE_BYTES:
+            raise AppError(
+                "FILE_TOO_LARGE", "文件太大，请只保留材料清单部分", f"{size} 字节"
+            )
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise AppError("INVALID_FILE", "无法读取该文件", str(exc)) from exc
+        return {"path": str(path), "name": path.name, "text": _decode_text(raw)}
+
+    def file_save_text(self, filename: str, content: str) -> dict:
+        return envelope(self._save_text, filename, content)
+
+    def _save_text(self, filename: str, content: str) -> dict:
+        import webview
+
+        if not isinstance(content, str) or not content:
+            raise AppError("INVALID_INPUT", "没有可保存的内容")
+        window = self._rt.window
+        if window is None:
+            raise AppError("NO_WINDOW", "窗口尚未就绪")
+        safe_name = Path(str(filename or "")).name or "export.csv"
+        suffix = Path(safe_name).suffix.lower() or ".csv"
+        result = window.create_file_dialog(
+            webview.FileDialog.SAVE,
+            save_filename=safe_name,
+            file_types=(f"{suffix.upper()[1:]} 文件 (*{suffix})", "所有文件 (*.*)"),
+        )
+        if not result:
+            return {"cancelled": True}
+        target = Path(result[0] if isinstance(result, (list, tuple)) else result)
+        try:
+            with open(target, "w", encoding="utf-8-sig", newline="") as f:
+                f.write(content)
+        except OSError as exc:
+            raise AppError("WRITE_FAILED", "无法写入该文件", str(exc)) from exc
+        return {"path": str(target)}
+
     # ------ 系统 ------ #
     def clipboard_write(self, text: str) -> dict:
         return envelope(_clipboard_write, text)
@@ -183,6 +244,19 @@ class Api:
         prefs = dict(APP_DEFAULTS)
         prefs.update({k: saved[k] for k in APP_DEFAULTS if k in saved})
         return prefs
+
+
+def _decode_text(raw: bytes) -> str:
+    """
+    按常见编码依次尝试解码，失败时用替换字符兜底.
+    """
+
+    for encoding in ("utf-8-sig", "gbk", "utf-16"):
+        try:
+            return raw.decode(encoding)
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    return raw.decode("utf-8", errors="replace")
 
 
 def _clipboard_write(text: str) -> bool:
