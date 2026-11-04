@@ -274,7 +274,7 @@ Other behaviour:
 
 ## Bundled mini-tools
 
-The download package also includes three console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use; their sources live in `src/tool_bundles/` with a matching spec under `packaging/` for each, so any of them can be rebuilt on its own.
+The download package also includes three console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use; their sources live in `src/tool_bundles/`, and the build specs are kept in a local-only `packaging/` folder (not tracked in git), so any of them can be rebuilt with PyInstaller.
 
 | Tool | Purpose | Notes |
 |---|---|---|

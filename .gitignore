@@ -227,5 +227,5 @@ __pycache__/
 .ruff_cache/
 *.py[cod]
 
-# 打包脚本需要入库（上面的 *.spec 规则只用于忽略随手生成的临时 spec）
-!packaging/*.spec
+# 打包脚本只保留在本地，不入库
+packaging/
