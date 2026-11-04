@@ -274,15 +274,15 @@ Other behaviour:
 
 ## Bundled mini-tools
 
-The download package also includes three legacy console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use.
+The download package also includes three console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use; their sources live in `src/tool_bundles/` with a matching spec under `packaging/` for each, so any of them can be rebuilt on its own.
 
 | Tool | Purpose | Notes |
 |---|---|---|
-| `ConfigGenerator.exe` | Pearl cannon parameter generator | Walks through `/log projectiles full` measurements and writes an importable `<name>.json` next to the exe. **Note**: the key is misspelled `XZ_INIT_POSTION` (missing `I`); rename it to `XZ_INIT_POSITION` before importing, otherwise the muzzle X/Z is lost |
+| `ConfigGenerator.exe` | Pearl cannon parameter generator | Walks through `/log projectiles full` measurements and writes an importable `<name>.json` next to the exe. Every prompt states the expected format with an example, and the saved path is printed when done |
 | `MainCannonConfigMaker.exe` | Main cannon record maker | Enter destination, coordinates, direction and blue/red array TNT; it prints a formatted record for announcements or archives |
 | `BorderCannonConfigMaker.exe` | Border cannon record maker | Enter destination, coordinates, direction and the minor/major counts of the three TNT charges; it prints a formatted record |
 
-All three are console prototypes from the old projects and output text or legacy settings JSON; this app already covers the same calculation, import and export, so they are optional.
+Coordinates use `(a, b)` with English parentheses and comma. The JSON written by `ConfigGenerator.exe` now uses `XZ_INIT_POSITION` and imports directly in the pearl cannon tool; files produced by the legacy generator still say `XZ_INIT_POSTION`, so that entry is ignored and the muzzle falls back to its default position — renaming the key fixes them.
 
 ## Stack
 
