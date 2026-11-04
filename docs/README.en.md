@@ -2,39 +2,54 @@
 
 > A desktop toolbox for LSP server players. It merges the Universal Pearl Cannon Configurator, the Border Cannon Configurator and a Material Converter into one app. \
 > Everything runs locally — no network, no uploads. \
-> Grab the latest build from the release page 😘😘😘
+> Download the latest build from [Baidu Netdisk](https://pan.baidu.com/s/1V3FcoPrWUt3bGQZ-vHqBZg?pwd=1234) (code `1234`). 😘😘😘
 
 [简体中文](../README.md) · [Adding a tool](ADDING_A_TOOL.en.md)
 
 ## Contents
 
-- [1. Quick start](#1-quick-start)
-- [2. Pearl cannon](#2-pearl-cannon)
-  - [2.1 Usage](#21-usage)
-  - [2.2 Settings](#22-settings)
-- [3. Border cannon](#3-border-cannon)
-  - [3.1 Usage](#31-usage)
-  - [3.2 Settings](#32-settings)
-- [4. Material converter](#4-material-converter)
-  - [4.1 Import a material list](#41-import-a-material-list)
-  - [4.2 Search and sorting](#42-search-and-sorting)
-  - [4.3 Stack size: default and batch](#43-stack-size-default-and-batch)
-  - [4.4 Ignoring materials](#44-ignoring-materials)
-  - [4.5 Conversion result](#45-conversion-result)
-  - [4.6 Loading plan](#46-loading-plan)
-  - [4.7 Export CSV](#47-export-csv)
-  - [4.8 Settings](#48-settings)
-- [5. Settings](#5-settings)
-- [6. Data and storage](#6-data-and-storage)
-- [7. Calculation notes and limitations](#7-calculation-notes-and-limitations)
-- [Stack](#stack)
-- [License](#license)
+- [LSP PlayerKit](#lsp-playerkit)
+  - [Contents](#contents)
+  - [Download](#download)
+  - [1. Quick start](#1-quick-start)
+  - [2. Pearl cannon](#2-pearl-cannon)
+    - [2.1 Usage](#21-usage)
+    - [2.2 Settings](#22-settings)
+  - [3. Border cannon](#3-border-cannon)
+    - [3.1 Usage](#31-usage)
+    - [3.2 Settings](#32-settings)
+  - [4. Material converter](#4-material-converter)
+    - [4.1 Import a material list](#41-import-a-material-list)
+    - [4.2 Search and sorting](#42-search-and-sorting)
+    - [4.3 Stack size: default and batch](#43-stack-size-default-and-batch)
+    - [4.4 Ignoring materials](#44-ignoring-materials)
+    - [4.5 Conversion result](#45-conversion-result)
+    - [4.6 Loading plan](#46-loading-plan)
+    - [4.7 Export CSV](#47-export-csv)
+    - [4.8 Settings](#48-settings)
+  - [5. Settings](#5-settings)
+  - [6. Data and storage](#6-data-and-storage)
+  - [7. Calculation notes and limitations](#7-calculation-notes-and-limitations)
+  - [Bundled mini-tools](#bundled-mini-tools)
+  - [Stack](#stack)
+  - [License](#license)
+
+---
+
+## Download
+
+The latest build is shared on Baidu Netdisk:
+
+| Item | Value |
+|---|---|
+| Link | <https://pan.baidu.com/s/1V3FcoPrWUt3bGQZ-vHqBZg?pwd=1234> |
+| Access code | `1234` |
 
 ---
 
 ## 1. Quick start
 
-Unzip the release and double-click `LSP_PlayerKit.exe`. Python and Node are not required.
+Unzip the downloaded package and double-click `LSP_PlayerKit.exe`. Python and Node are not required.
 
 The window has three parts:
 
@@ -256,6 +271,18 @@ Other behaviour:
 - Material names and counts come straight from the imported list; conversion only changes boxes/stacks/items, never names.
 
 ---
+
+## Bundled mini-tools
+
+The download package also includes three legacy console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use.
+
+| Tool | Purpose | Notes |
+|---|---|---|
+| `ConfigGenerator.exe` | Pearl cannon parameter generator | Walks through `/log projectiles full` measurements and writes an importable `<name>.json` next to the exe. **Note**: the key is misspelled `XZ_INIT_POSTION` (missing `I`); rename it to `XZ_INIT_POSITION` before importing, otherwise the muzzle X/Z is lost |
+| `MainCannonConfigMaker.exe` | Main cannon record maker | Enter destination, coordinates, direction and blue/red array TNT; it prints a formatted record for announcements or archives |
+| `BorderCannonConfigMaker.exe` | Border cannon record maker | Enter destination, coordinates, direction and the minor/major counts of the three TNT charges; it prints a formatted record |
+
+All three are console prototypes from the old projects and output text or legacy settings JSON; this app already covers the same calculation, import and export, so they are optional.
 
 ## Stack
 
