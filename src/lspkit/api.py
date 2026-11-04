@@ -187,10 +187,10 @@ class Api:
             raise AppError("INVALID_FILE", "无法读取该文件", str(exc)) from exc
         return {"path": str(path), "name": path.name, "text": _decode_text(raw)}
 
-    def file_save_text(self, filename: str, content: str) -> dict:
-        return envelope(self._save_text, filename, content)
+    def file_save_text(self, filename: str, content: str, directory: str = "") -> dict:
+        return envelope(self._save_text, filename, content, directory)
 
-    def _save_text(self, filename: str, content: str) -> dict:
+    def _save_text(self, filename: str, content: str, directory: str = "") -> dict:
         import webview
 
         if not isinstance(content, str) or not content:
@@ -200,11 +200,14 @@ class Api:
             raise AppError("NO_WINDOW", "窗口尚未就绪")
         safe_name = Path(str(filename or "")).name or "export.csv"
         suffix = Path(safe_name).suffix.lower() or ".csv"
-        result = window.create_file_dialog(
-            webview.FileDialog.SAVE,
-            save_filename=safe_name,
-            file_types=(f"{suffix.upper()[1:]} 文件 (*{suffix})", "所有文件 (*.*)"),
-        )
+        kwargs: dict = {
+            "save_filename": safe_name,
+            "file_types": (f"{suffix.upper()[1:]} 文件 (*{suffix})", "所有文件 (*.*)"),
+        }
+        target_dir = _export_dir(directory, self._rt.location.path)
+        if target_dir is not None:
+            kwargs["directory"] = str(target_dir)
+        result = window.create_file_dialog(webview.FileDialog.SAVE, **kwargs)
         if not result:
             return {"cancelled": True}
         target = Path(result[0] if isinstance(result, (list, tuple)) else result)
@@ -244,6 +247,25 @@ class Api:
         prefs = dict(APP_DEFAULTS)
         prefs.update({k: saved[k] for k in APP_DEFAULTS if k in saved})
         return prefs
+
+
+def _export_dir(directory: str, data_dir: Path) -> Path | None:
+    """
+    解析导出目录：自定义目录优先，否则用数据目录下的 output.
+    """
+
+    candidates: list[Path] = []
+    if directory:
+        candidates.append(Path(directory).expanduser())
+    candidates.append(data_dir / "output")
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        except OSError:
+            continue
+    return None
 
 
 def _decode_text(raw: bytes) -> str:
