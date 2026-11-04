@@ -39,6 +39,29 @@ def main() -> None:
     )
     api = Api(runtime, build_registry())
     url = _start_server(web_dir())
+
+    # 用假文件替换原生对话框，便于无人工干预地验证导入流程
+    material_text = [
+        '"Item","Total","Missing","Available"\n'
+        '"白色染色玻璃",4766,4766,0\n'
+        '"侦测器",1219,1219,0\n'
+        '"箱子",1158,1158,0'
+    ]
+    Api.file_open_text = lambda self: {
+        "path": "debug.csv",
+        "name": "material_list.csv",
+        "text": material_text[0],
+    }
+    saved = {}
+
+    def fake_save(self, filename, content, directory=""):
+        saved["name"] = filename
+        saved["size"] = len(content)
+        saved["directory"] = directory
+        return {"path": filename}
+
+    Api.file_save_text = fake_save
+
     window = webview.create_window("smoke", url=url, js_api=api, width=1280, height=820)
     runtime.window = window
 
@@ -148,34 +171,211 @@ def main() -> None:
 
             target.evaluate_js("document.querySelectorAll('.rail-item')[2].click()")
             time.sleep(1.2)
-            target.evaluate_js("document.querySelectorAll('.source-actions .btn')[1].click()")
-            time.sleep(1.5)
+            target.evaluate_js("document.querySelector('.import-btn').click()")
+            time.sleep(2)
             report(
                 target,
-                "MATERIAL_CALC",
-                "({rows: document.querySelectorAll('.data-table tbody tr').length,"
+                "MATERIAL_IMPORT",
+                "({listRows: document.querySelectorAll('.list-row').length,"
+                " first: ((document.querySelector('.list-row') || {children: []}).children[1] || {}).innerText,"
+                " firstCount: ((document.querySelector('.list-row') || {children: []}).children[3] || {}).innerText,"
+                " rows: document.querySelectorAll('.data-table tbody tr').length,"
                 " stats: Array.from(document.querySelectorAll('.stat-value')).map((e) => e.innerText),"
-                " name: (document.querySelector('.data-table tbody tr td') || {}).innerText,"
-                " title: (document.querySelector('.titles strong') || {}).innerText,"
-                " textarea: !!document.querySelector('textarea'),"
-                " align: getComputedStyle(document.querySelector('.data-table th')).textAlign,"
-                " empty: !!document.querySelector('.table-wrap .empty')})",
+                " stack: (document.querySelector('.segmented button.active') || {}).innerText,"
+                " toast: (document.querySelector('.toast.success') || {}).innerText || '',"
+                " align: getComputedStyle(document.querySelector('.data-table th')).textAlign})",
+            )
+
+            target.evaluate_js(
+                "document.querySelectorAll('.list-row input[type=checkbox]')[0].click();"
+                "document.querySelectorAll('.list-row input[type=checkbox]')[1].click();"
+            )
+            time.sleep(0.4)
+            target.evaluate_js(
+                "(function () {"
+                "  const select = document.querySelector('.batch-select');"
+                "  select.value = '1';"
+                "  select.dispatchEvent(new Event('change', {bubbles: true}));"
+                "})()"
+            )
+            time.sleep(0.3)
+            target.evaluate_js("document.querySelector('.batch .btn').click()")
+            time.sleep(1.8)
+            report(
+                target,
+                "MATERIAL_BATCH",
+                "({picked: document.querySelectorAll('.list-row.picked').length,"
+                " chips: Array.from(document.querySelectorAll('.stack-chip')).slice(0, 3).map((e) => e.innerText),"
+                " cells: Array.from(document.querySelector('.data-table tbody tr').children).map((c) => c.innerText)})",
+            )
+
+            target.evaluate_js("document.querySelectorAll('.stack-filter button')[3].click()")
+            time.sleep(0.6)
+            report(
+                target,
+                "MATERIAL_FILTER",
+                "({rows: document.querySelectorAll('.data-table tbody tr').length,"
+                " stacks: Array.from(document.querySelectorAll('.data-table tbody tr td:nth-child(2)')).map((c) => c.innerText)})",
+            )
+
+            target.evaluate_js("document.querySelectorAll('.stack-filter button')[0].click()")
+            time.sleep(0.6)
+            target.evaluate_js("document.querySelectorAll('.data-table th')[2].click()")
+            time.sleep(0.6)
+            report(
+                target,
+                "MATERIAL_SORT",
+                "({rows: document.querySelectorAll('.data-table tbody tr').length,"
+                " arrow: (document.querySelector('.sort-arrow') || {}).innerText,"
+                " firstCount: (document.querySelector('.data-table tbody tr td:nth-child(3)') || {}).innerText})",
+            )
+
+            target.evaluate_js("document.querySelector('.sort-btn').click()")
+            time.sleep(0.5)
+            report(
+                target,
+                "MATERIAL_LIST_SORT",
+                "({arrow: (document.querySelector('.sort-btn .arrow') || {}).innerText,"
+                " firstCount: ((document.querySelector('.list-row') || {children: []}).children[3] || {}).innerText})",
+            )
+
+            target.evaluate_js("document.querySelectorAll('.actions .btn')[1].click()")
+            time.sleep(3)
+            report(
+                target,
+                "MATERIAL_PACK",
+                "({open: !!document.querySelector('.packing'),"
+                " cards: document.querySelectorAll('.box-card').length,"
+                " listItems: document.querySelectorAll('.box-index-item').length,"
+                " detail: !!document.querySelector('.box-detail'),"
+                " summary: (document.querySelector('.packing-summary') || {}).innerText})",
+            )
+            target.evaluate_js(
+                "const items = document.querySelectorAll('.box-index-item');"
+                "if (items.length > 1) items[1].click()"
+            )
+            time.sleep(0.6)
+            report(
+                target,
+                "MATERIAL_PACK_SELECT",
+                "({active: (document.querySelector('.box-index-item.active') || {}).innerText || '',"
+                " entries: document.querySelectorAll('.detail-list .pack-entry').length,"
+                " head: (document.querySelector('.detail-head .box-no') || {}).innerText || ''})",
+            )
+            target.evaluate_js("document.querySelector('.packing-foot .btn.primary').click()")
+            time.sleep(0.8)
+
+            target.evaluate_js(
+                "document.querySelectorAll('.list-row input[type=checkbox]')[0].click();"
+                "document.querySelectorAll('.list-row input[type=checkbox]')[1].click();"
+            )
+            time.sleep(0.4)
+            target.evaluate_js("document.querySelectorAll('.batch .btn')[1].click()")
+            time.sleep(1.8)
+            report(
+                target,
+                "MATERIAL_IGNORE",
+                "({ignored: document.querySelectorAll('.list-row.ignored').length,"
+                " panelRows: document.querySelectorAll('.ignored-row').length,"
+                " selected: (document.querySelector('.list-head') || {}).innerText || '',"
+                " rows: document.querySelectorAll('.data-table tbody tr').length})",
+            )
+            target.evaluate_js("document.querySelector('.ignored-head .sort-btn').click()")
+            time.sleep(1.8)
+            report(
+                target,
+                "MATERIAL_RESTORE",
+                "({ignored: document.querySelectorAll('.list-row.ignored').length,"
+                " rows: document.querySelectorAll('.data-table tbody tr').length})",
             )
 
             target.evaluate_js(
                 "(function () {"
-                "  const area = document.querySelector('textarea');"
-                "  area.value = 'bad line here';"
-                "  area.dispatchEvent(new Event('input', {bubbles: true}));"
-                "  document.querySelector('.actions .primary').click();"
+                "  const input = document.querySelector('.search-input');"
+                "  input.focus();"
+                "  input.value = '箱';"
+                "  input.dispatchEvent(new Event('input', {bubbles: true}));"
                 "})()"
             )
-            time.sleep(0.9)
+            time.sleep(0.6)
             report(
                 target,
-                "MATERIAL_BAD_INPUT",
+                "MATERIAL_SEARCH",
+                "({rows: document.querySelectorAll('.list-row').length,"
+                " suggestions: document.querySelectorAll('.suggestion').length,"
+                " first: (document.querySelector('.suggestion-name') || {}).innerText || ''})",
+            )
+            target.evaluate_js(
+                "(function () {"
+                "  const input = document.querySelector('.search-input');"
+                "  input.value = '';"
+                "  input.dispatchEvent(new Event('input', {bubbles: true}));"
+                "  input.blur();"
+                "})()"
+            )
+            time.sleep(0.5)
+
+            target.evaluate_js("document.querySelector('.settings-btn').click()")
+            time.sleep(1.2)
+            report(
+                target,
+                "MATERIAL_SETTINGS",
+                "({groups: document.querySelectorAll('.drawer .group').length,"
+                " textInputs: document.querySelectorAll('.drawer input[type=text]').length,"
+                " pick: (document.querySelector('.path-field .btn') || {}).innerText || ''})",
+            )
+            target.evaluate_js(
+                "window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))"
+            )
+            time.sleep(0.6)
+
+            report(
+                target,
+                "MATERIAL_EXPORT_DIR",
+                "({placeholder: (document.querySelectorAll('.export-input')[1] || {}).placeholder || ''})",
+            )
+            target.evaluate_js(
+                "(function () {"
+                "  const input = document.querySelectorAll('.export-input')[1];"
+                "  input.value = 'D:\\\\smoke_out';"
+                "  input.dispatchEvent(new Event('input', {bubbles: true}));"
+                "  input.dispatchEvent(new Event('change', {bubbles: true}));"
+                "})()"
+            )
+            time.sleep(1)
+
+            target.evaluate_js(
+                "(function () {"
+                "  const input = document.querySelector('.export-input');"
+                "  input.value = 'my_plan.csv';"
+                "  input.dispatchEvent(new Event('input', {bubbles: true}));"
+                "})()"
+            )
+            time.sleep(0.3)
+            target.evaluate_js("document.querySelectorAll('.actions .btn')[2].click()")
+            time.sleep(0.8)
+            print("MATERIAL_EXPORT:", json.dumps(saved, ensure_ascii=False))
+
+            target.evaluate_js(
+                "(function () {"
+                "  const input = document.querySelector('.export-input');"
+                "  input.value = '';"
+                "  input.dispatchEvent(new Event('input', {bubbles: true}));"
+                "})()"
+            )
+            time.sleep(0.3)
+            target.evaluate_js("document.querySelectorAll('.actions .btn')[2].click()")
+            time.sleep(0.8)
+            print("MATERIAL_EXPORT_DEFAULT:", json.dumps(saved, ensure_ascii=False))
+
+            material_text[0] = "no numbers here"
+            target.evaluate_js("document.querySelector('.import-btn').click()")
+            time.sleep(1.2)
+            report(
+                target,
+                "MATERIAL_BAD_FILE",
                 "({toast: (document.querySelector('.toast.error') || {}).innerText || '',"
-                " empty: !!document.querySelector('.table-wrap .empty')})",
+                " rows: document.querySelectorAll('.data-table tbody tr').length})",
             )
 
             target.evaluate_js("document.querySelectorAll('.rail-item')[0].click()")

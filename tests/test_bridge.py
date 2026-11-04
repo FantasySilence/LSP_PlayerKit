@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from lspkit.api import Api
+from lspkit.api import Api, _export_dir
 from lspkit.platform.locator import Location
 from lspkit.platform.storage import Runtime
 from lspkit.platform.store import Store
@@ -221,9 +221,9 @@ def test_material_rejects_empty_input(api):
 
 def test_material_settings_change_capacity(api):
     current = api.settings_get("material")["data"]
-    assert current == {"stackSize": 64, "shulkerSlots": 27}
+    assert current == {"stackSize": "64", "shulkerSlots": 27, "exportDir": ""}
 
-    saved = api.settings_save("material", {**current, "stackSize": 16, "shulkerSlots": 1})
+    saved = api.settings_save("material", {**current, "stackSize": "16", "shulkerSlots": 1})
     assert saved["ok"] is True
 
     result = api.tool_call("material", "convert", {"text": "minecraft:stone 100"})
@@ -233,4 +233,142 @@ def test_material_settings_change_capacity(api):
     assert result["data"]["totals"]["boxesNeeded"] == 7
 
     reset = api.settings_reset("material")
-    assert reset["data"] == {"stackSize": 64, "shulkerSlots": 27}
+    assert reset["data"] == {"stackSize": "64", "shulkerSlots": 27, "exportDir": ""}
+
+
+def test_material_parses_litematica_csv(api):
+    text = "\n".join(
+        [
+            '"Item","Total","Missing","Available"',
+            '"白色染色玻璃",4766,4766,0',
+            '"侦测器",1219,1219,0',
+            '"末影箱",55,55,1',
+        ]
+    )
+    result = api.tool_call("material", "convert", {"text": text})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    assert data["totals"]["kinds"] == 3
+    assert data["totals"]["count"] == 6040
+    assert data["totals"]["perBox"] == 1728
+
+    # 名称与导入清单完全一致，数量取 Total 列而不是 Available 列
+    assert [row["name"] for row in data["items"]] == ["白色染色玻璃", "侦测器", "末影箱"]
+    assert [row["count"] for row in data["items"]] == [4766, 1219, 55]
+
+
+def test_material_unstackable_uses_items_only(api):
+    saved = api.settings_save("material", {"stackSize": "1", "shulkerSlots": 27})
+    assert saved["ok"] is True
+
+    text = '"Item","Total"\n"铁砧",100'
+    result = api.tool_call("material", "convert", {"text": text})
+    row = result["data"]["items"][0]
+
+    assert result["data"]["totals"]["perBox"] == 27
+    assert row["stack"] == 1
+    assert (row["shulkers"], row["stacks"], row["items"]) == (3, 0, 19)
+
+
+def test_material_per_item_stack_override(api):
+    text = '"Item","Total"\n"铁砧",100\n"石块",100'
+    result = api.tool_call("material", "convert", {"text": text, "stacks": {"铁砧": "1"}})
+    assert result["ok"] is True, result
+
+    rows = {row["name"]: row for row in result["data"]["items"]}
+    assert rows["铁砧"]["stack"] == 1
+    assert (rows["铁砧"]["shulkers"], rows["铁砧"]["stacks"], rows["铁砧"]["items"]) == (3, 0, 19)
+    assert rows["石块"]["stack"] == 64
+    assert (rows["石块"]["shulkers"], rows["石块"]["stacks"], rows["石块"]["items"]) == (0, 1, 36)
+
+
+def test_material_rejects_bad_stack_override(api):
+    result = api.tool_call(
+        "material",
+        "convert",
+        {"text": '"Item","Total"\n"铁砧",10', "stacks": {"铁砧": "32"}},
+    )
+    assert result["ok"] is False
+    assert result["error"]["code"] == "INVALID_INPUT"
+
+
+def test_material_ignore_excludes_from_result(api):
+    text = '"Item","Total"\n"石头",1000\n"木棍",100\n"铁砧",100'
+    result = api.tool_call("material", "convert", {"text": text, "ignore": ["木棍"]})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    assert [row["name"] for row in data["items"]] == ["石头", "铁砧"]
+    assert data["totals"]["kinds"] == 2
+    assert data["totals"]["count"] == 1100
+    assert [row["name"] for row in data["ignoredItems"]] == ["木棍"]
+    assert data["ignoredItems"][0]["count"] == 100
+
+    plan = api.tool_call("material", "pack", {"text": text, "ignore": ["木棍", "铁砧"]})
+    assert plan["ok"] is True, plan
+    assert plan["data"]["totals"]["kinds"] == 1
+    assert len(plan["data"]["ignoredItems"]) == 2
+
+
+def test_material_packing_uses_minimum_boxes(api):
+    text = '"Item","Total"\n"石头",1000\n"木棍",100\n"铁砧",100'
+    result = api.tool_call("material", "pack", {"text": text})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    slots = data["totals"]["slots"]
+    capacity = data["totals"]["capacity"]
+    assert capacity == 27
+    assert data["totals"]["boxes"] == -(-slots // capacity)
+    assert sum(box["used"] for box in data["boxes"]) == slots
+    assert all(box["used"] <= capacity for box in data["boxes"])
+
+    converted = api.tool_call("material", "convert", {"text": text})["data"]
+    packed = sum(entry["count"] for box in data["boxes"] for entry in box["entries"])
+    assert packed == converted["totals"]["count"]
+
+
+def test_material_packing_unstackable(api):
+    text = '"Item","Total"\n"铁砧",1000'
+    result = api.tool_call("material", "pack", {"text": text, "stacks": {"铁砧": "1"}})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    assert data["totals"]["capacity"] == 27
+    assert data["totals"]["boxes"] == 38
+    assert sum(box["used"] for box in data["boxes"]) == 1000
+    assert all(len(box["entries"]) == 1 for box in data["boxes"])
+
+
+class _DialogWindow:
+    def __init__(self) -> None:
+        self.kwargs: dict | None = None
+
+    def create_file_dialog(self, *args, **kwargs):
+        self.kwargs = kwargs
+        return None
+
+
+def test_export_dir_defaults_to_data_output(tmp_path):
+    target = _export_dir("", tmp_path)
+    assert target == tmp_path / "output"
+    assert target.is_dir()
+
+    custom = tmp_path / "custom"
+    assert _export_dir(str(custom), tmp_path) == custom
+    assert custom.is_dir()
+
+
+def test_file_save_text_uses_export_dir(api):
+    window = _DialogWindow()
+    api._rt.window = window
+
+    result = api.file_save_text("plan.csv", "a,b", "")
+    assert result["ok"] is True
+    assert window.kwargs["save_filename"] == "plan.csv"
+    assert str(window.kwargs["directory"]).endswith("output")
+
+    custom = api._rt.location.path / "custom_out"
+    api.file_save_text("plan.csv", "a,b", str(custom))
+    assert window.kwargs["directory"] == str(custom)
