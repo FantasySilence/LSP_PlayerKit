@@ -83,9 +83,13 @@ class Field:
             if self.type == "enum":
                 allowed = [opt["value"] for opt in (self.options or [])]
                 if value not in allowed:
+                    # 旧配置可能把枚举存成数字，这里做一次文本化兜底
+                    text = str(value).strip()
+                    if text in allowed:
+                        return text
                     raise ValueError(value)
                 return value
-            if self.type == "string":
+            if self.type in ("string", "path"):
                 return str(value)
             number = float(value)
             if self.type == "int":

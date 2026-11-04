@@ -8,6 +8,7 @@
 # =================================== #
 
 DEFAULT_SETTINGS = {
-    "stackSize": 64,
+    "stackSize": "64",
     "shulkerSlots": 27,
+    "exportDir": "",
 }

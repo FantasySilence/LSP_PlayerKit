@@ -9,7 +9,7 @@
 
 from lspkit.platform.registry import ToolManifest
 
-from .actions import convert_action
+from .actions import convert_action, pack_action
 from .legacy import convert
 from .schema import SCHEMA
 
@@ -23,9 +23,11 @@ MANIFEST = ToolManifest(
     schema=SCHEMA,
     actions=[
         {"id": "convert", "labelKey": "material.action.convert"},
+        {"id": "pack", "labelKey": "material.action.pack"},
     ],
     columns=[
         {"key": "name", "nameKey": "material.col.name", "type": "string"},
+        {"key": "stack", "nameKey": "material.col.stack", "type": "int"},
         {"key": "count", "nameKey": "material.col.count", "type": "int"},
         {"key": "shulkers", "nameKey": "material.col.shulkers", "type": "int"},
         {"key": "stacks", "nameKey": "material.col.stacks", "type": "int"},
@@ -33,6 +35,6 @@ MANIFEST = ToolManifest(
     ],
 )
 
-HANDLERS = {"convert": convert_action}
+HANDLERS = {"convert": convert_action, "pack": pack_action}
 
 LEGACY = convert
