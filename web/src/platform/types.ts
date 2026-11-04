@@ -1,7 +1,7 @@
 export interface FieldDef {
   key: string
   label: string
-  type: 'int' | 'float' | 'bool' | 'enum' | 'string'
+  type: 'int' | 'float' | 'bool' | 'enum' | 'string' | 'path'
   default: unknown
   min: number | null
   max: number | null
@@ -88,6 +88,7 @@ export interface BorderRow {
 
 export interface MaterialRow {
   name: string
+  stack: number
   count: number
   shulkers: number
   stacks: number
@@ -104,9 +105,41 @@ export interface MaterialTotals {
   boxesNeeded: number
 }
 
+export interface MaterialIgnored {
+  name: string
+  count: number
+  stack: number
+}
+
 export interface MaterialResult {
   items: MaterialRow[]
   totals: MaterialTotals
+  ignoredItems: MaterialIgnored[]
+  warnings: { line: number; text: string }[]
+  skipped: number
+  truncated: boolean
+}
+
+export interface PackingEntry {
+  name: string
+  stack: number
+  stacks: number
+  items: number
+  slots: number
+  count: number
+}
+
+export interface PackingBox {
+  index: number
+  capacity: number
+  used: number
+  entries: PackingEntry[]
+}
+
+export interface PackingResult {
+  boxes: PackingBox[]
+  totals: { boxes: number; slots: number; capacity: number; kinds: number }
+  ignoredItems: MaterialIgnored[]
   warnings: { line: number; text: string }[]
   skipped: number
   truncated: boolean

@@ -26,6 +26,7 @@
   "settings.imported": "Config imported",
   "settings.importedLegacy": "Legacy config converted and imported",
   "settings.enabled": "Enabled",
+  "settings.pickDir": "Browse…",
   "storage.current": "Current data folder",
   "storage.change": "Change location",
   "storage.open": "Open folder",

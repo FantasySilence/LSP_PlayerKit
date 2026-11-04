@@ -48,6 +48,20 @@ function onEnum(field: FieldDef, event: Event) {
   write(field.key, (event.target as HTMLSelectElement).value)
 }
 
+function onText(field: FieldDef, event: Event) {
+  write(field.key, (event.target as HTMLInputElement).value)
+}
+
+async function pickPath(field: FieldDef) {
+  try {
+    const path = await invoke<string | null>('storage_pick_dir')
+    if (!path) return
+    write(field.key, path)
+  } catch (error) {
+    notifyError(error)
+  }
+}
+
 const stepFor = (field: FieldDef) =>
   field.step ?? (field.type === 'int' ? 1 : Math.pow(10, -Math.min(field.digits, 6)))
 
@@ -248,6 +262,22 @@ watch(
                 <span>{{ t('settings.enabled') }}</span>
               </label>
 
+              <div v-else-if="field.type === 'string' || field.type === 'path'" class="path-field">
+                <input
+                  class="input mono"
+                  type="text"
+                  :value="read(field.key)"
+                  @input="onText(field, $event)"
+                />
+                <button
+                  v-if="field.type === 'path'"
+                  class="btn sm"
+                  @click="pickPath(field)"
+                >
+                  {{ t('settings.pickDir') }}
+                </button>
+              </div>
+
               <input
                 v-else
                 class="input mono"
@@ -367,6 +397,16 @@ watch(
   align-items: center;
   gap: 8px;
   color: var(--muted);
+}
+
+.path-field {
+  display: flex;
+  gap: 8px;
+}
+
+.path-field .input {
+  flex: 1;
+  min-width: 0;
 }
 
 .drawer-actions {

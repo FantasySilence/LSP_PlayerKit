@@ -26,6 +26,7 @@
   "settings.imported": "配置已导入",
   "settings.importedLegacy": "已从旧版配置转换并导入",
   "settings.enabled": "启用",
+  "settings.pickDir": "选择…",
   "storage.current": "当前数据目录",
   "storage.change": "更改位置",
   "storage.open": "打开目录",

@@ -14,7 +14,10 @@ const props = defineProps<{
   emptyKey?: string
 }>()
 
-const emit = defineEmits<{ (e: 'select', index: number): void }>()
+const emit = defineEmits<{
+  (e: 'select', index: number): void
+  (e: 'sort-change', payload: { key: string; dir: 'asc' | 'desc' }): void
+}>()
 
 const sortKey = ref<string | null>(props.defaultSort?.key ?? null)
 const sortDir = ref<'asc' | 'desc'>(props.defaultSort?.dir ?? 'asc')
@@ -56,10 +59,11 @@ function onHeader(column: ColumnDef): void {
   if (!canSort(column)) return
   if (sortKey.value === column.key) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-    return
+  } else {
+    sortKey.value = column.key
+    sortDir.value = 'asc'
   }
-  sortKey.value = column.key
-  sortDir.value = 'asc'
+  emit('sort-change', { key: column.key, dir: sortDir.value })
 }
 
 function display(value: unknown, column: ColumnDef): string {
