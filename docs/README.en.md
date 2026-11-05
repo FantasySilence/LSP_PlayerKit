@@ -1,6 +1,6 @@
 # LSP PlayerKit
 
-> A desktop toolbox for LSP server players. It merges the Universal Pearl Cannon Configurator, the Border Cannon Configurator and a Material Converter into one app. \
+> A desktop toolbox for LSP server players. It merges the Universal Pearl Cannon Configurator, the Border Cannon Configurator, a Material Converter and Puppet Logistics into one app. \
 > Everything runs locally — no network, no uploads. \
 > Download the latest build from [Baidu Netdisk](https://pan.baidu.com/s/1V3FcoPrWUt3bGQZ-vHqBZg?pwd=1234) (code `1234`). 😘😘😘
 
@@ -27,9 +27,15 @@
     - [4.6 Loading plan](#46-loading-plan)
     - [4.7 Export CSV](#47-export-csv)
     - [4.8 Settings](#48-settings)
-  - [5. Settings](#5-settings)
-  - [6. Data and storage](#6-data-and-storage)
-  - [7. Calculation notes and limitations](#7-calculation-notes-and-limitations)
+  - [5. Puppet Logistics](#5-puppet-logistics)
+    - [5.1 Stations](#51-stations)
+    - [5.2 Generating commands](#52-generating-commands)
+    - [5.3 Running commands (optional)](#53-running-commands-optional)
+    - [5.4 Ledger](#54-ledger)
+    - [5.5 Settings](#55-settings)
+  - [6. Settings](#6-settings)
+  - [7. Data and storage](#7-data-and-storage)
+  - [8. Calculation notes and limitations](#8-calculation-notes-and-limitations)
   - [Bundled mini-tools](#bundled-mini-tools)
   - [Stack](#stack)
   - [License](#license)
@@ -53,11 +59,11 @@ Unzip the downloaded package and double-click `LSP_PlayerKit.exe`. Python and No
 
 The window has three parts:
 
-- **Left rail**: Pearl Cannon, Border Cannon, Material Converter, a “Coming soon” placeholder, and About.
+- **Left rail**: Pearl Cannon, Border Cannon, Material Converter, Puppet Logistics, a “Coming soon” placeholder, and About.
 - **Top bar**: active tool name and description, language (English / 简体中文 / 繁體中文), light/dark theme, and the settings gear.
 - **Workspace**: parameters on the left, results on the right.
 
-Shortcuts: `Ctrl+1 / Ctrl+2 / Ctrl+3` switch tools, `Ctrl+,` opens settings. Window size and the maximized state are remembered.
+Shortcuts: `Ctrl+1 / Ctrl+2 / Ctrl+3 / Ctrl+4` switch tools, `Ctrl+,` opens settings. Window size and the maximized state are remembered.
 
 ![Main window](../README_img/en/1-main.png)
 
@@ -214,20 +220,110 @@ The export follows the current **filter and sort**, is UTF-8 with BOM, and opens
 
 ---
 
-## 5. Settings
+## 5. Puppet Logistics
+
+Works out “boxes → bots → batches → commands” and can type them into the game. The tool only spawns and kills fake players; loading, moving and unloading are still done by the in-game station.
+
+### 5.1 Stations
+
+A station stores a **group tag**, a name, a dimension, coordinates and a short prefix. The group tag shows up in the shipment dropdowns and the station list: opening a dropdown shows the group tags first, clicking one filters the list to that group's places (names no longer repeat the tag), and the closed control shows `重溟洋工业区 · 全物品`. That means the name itself can stay short (`全物品`) instead of repeating the district in every name.
+
+You can add, edit and delete stations, or import the legacy configuration:
+
+- the old `stops.json` (same object shape as the legacy tool);
+- lines of `name x y z prefix [group] dimension`; the `end_` / `ov_` / `nether_` prefixes set the dimension and are stripped.
+
+Names written as `district·place` are split into group + name when read; a group tag cannot contain spaces. A note holds at most 60 characters and appears inside the card on hover, wrapping to at most two lines.
+
+Stations can also be exported as JSON (importable again) or as `name x y z prefix group dimension` text; exports go to the `output` folder inside the data directory by default.
+
+Bot names come from a template, `bot_{origin}_{dest}_{index}` by default. The final name must be 3–16 characters (Minecraft username limit); prefixes that are too long raise an error asking you to shorten them.
+
+### 5.2 Generating commands
+
+Pick the origin, destination, number of boxes and the operation:
+
+- 36 boxes per bot and 24 bots per batch (864 boxes) by default, both configurable;
+- bot count = ⌈boxes / boxes-per-bot⌉, then split into batches;
+- “Spawn at origin” / “Spawn at destination” decides which station the spawn command targets; they are normally used as a pair: spawn at the origin and load, kill them, then spawn the same bots at the destination to unload;
+- results are split into Spawn and Kill tabs, with copy-all and `.txt` export (also usable as a `.mcfunction`). The **Clear commands** button next to Copy all empties the current preview.
+
+Commands look like:
+
+```text
+/execute in minecraft:the_end run player bot_all_con_1 spawn at 136 48 8
+/player bot_all_con_1 kill
+```
+
+**Example: moving 600 boxes from A to B (load, then unload at the destination)**
+
+Say A is the source warehouse (Overworld, `100 64 -200`, prefix `a`) and B is the destination (The End, `200 48 50`, prefix `b`):
+
+1. **Spawn at the origin**: add both stations under **Stations** (group tag `Example`); pick A as From, B as To, enter `600` boxes, choose “Spawn at origin” and generate. `ceil(600 / 36) = 17` bots (17 ≤ 24, one batch) named `bot_a_b_1` … `bot_a_b_17`:
+   ```text
+   /execute in minecraft:overworld run player bot_a_b_1 spawn at 100 64 -200
+   ...
+   ```
+   Copy them into the game (or enable auto input); the bots appear at A. At the default 1 s interval this takes about 32 seconds.
+2. **Load**: operate the fake-player cargo station at A and fill the 17 bots with the 600 boxes.
+3. **Clear, then spawn at the destination**: run the 17 `/player bot_a_b_N kill` commands from the Kill tab to clear the bots at A; switch the operation to “Spawn at destination”, generate and run again so the same bot names appear at B:
+   ```text
+   /execute in minecraft:the_end run player bot_a_b_1 spawn at 200 48 50
+   ...
+   ```
+4. **Unload**: operate the cargo station at B to unload; afterwards you can clear this batch from the Kill tab again.
+5. The ledger records every spawn/kill: route A → B, operation location A · Overworld (or B · The End), 600 boxes / 17 bots; clicking a row restores the commands.
+
+For 1000 boxes: `ceil(1000 / 36) = 28` bots, split into batches of 24 + 4; repeat steps 1 → 4 for each batch.
+
+### 5.3 Running commands (optional)
+
+Execution is off by default. Enable **Settings → Run → Allow auto input** to type the commands into Minecraft:
+
+- Run opens a confirmation first, then counts down and brings the game window to the front;
+- clipboard paste (`Ctrl+A`, `Ctrl+V`) with keys held for 0.12 s; before pressing Enter the runner probes whether the game stalled and retries the whole command if it did;
+- press `ESC` in-game to stop; afterwards “Build cleanup” kills any bots that may already exist, and the sent count is written to the ledger;
+- when every command has been sent, the runner sends one extra English chat message, `Operation completed successfully`, so you can tell the batch finished;
+- **Diagnose** checks the window, focus, clipboard and administrator rights;
+- if Minecraft runs as administrator, this app must run as administrator too, otherwise Windows drops the injected keys.
+
+### 5.4 Ledger
+
+Every run (done / stopped / error) appends a row: number, time, route, **operation location** (the station and dimension this run operated at), boxes, bots, phase, state and sent count. The last 200 rows are kept and can be cleared at once.
+
+Click a row to restore the commands that run saved into the command preview above (spawn / kill); you can copy, export or run them again. “Back to current order” returns to the commands generated from the current form.
+
+### 5.5 Settings
+
+| Setting | Meaning |
+|---|---|
+| Boxes per bot | Default 36; a bot has 36 slots, one box each |
+| Bots per batch | Default 24, i.e. 864 boxes per batch |
+| Bot name template | Supports `{origin}` / `{dest}` / `{index}` |
+| Allow auto input | Required to run; briefly takes keyboard focus |
+| Command interval | Delay between commands, 1 s by default |
+| Start countdown | Preparation time before running, 3 s by default |
+| Input mode | Clipboard paste (recommended) or character typing |
+| Force game window to front | Re-check focus before every command |
+| Lag retries | 3 by default |
+| Restore clipboard afterwards | On by default |
+
+---
+
+## 6. Settings
 
 Click the gear (or press `Ctrl+,`) to open the settings drawer. It has three tabs:
 
 - **Tool options**: generated from the active tool's schema; saved values apply immediately. Reset and import live at the bottom.
 - **Data & storage**: view/change the data folder, open it, export/import a settings bundle.
-- **About**: version, stack and documentation shortcuts.
+- **About**: version, stack and a shortcut to the manual (README PDF).
 
 **Import config** accepts two kinds of files:
 
 - a single JSON exported by this app (e.g. `pearl.json`);
 - the legacy `resources/settings/settings.json` from either original project — detected and converted automatically (the legacy border cannon switches to the legacy direction mode).
 
-The **About** tab shows the version, stack, privacy note and license, with shortcuts to the configuration docs and the GitHub repository.
+The **About** tab shows the version, stack, privacy note and license, with shortcuts to the manual (the Chinese/English README as PDF) and the GitHub repository.
 
 ![Settings · Tool options](../README_img/en/3-settings.png)
 
@@ -235,7 +331,7 @@ The **About** tab shows the version, stack, privacy note and license, with short
 
 ---
 
-## 6. Data and storage
+## 7. Data and storage
 
 Settings live in `data` next to the executable by default. **Copy the whole folder to migrate.**
 
@@ -247,7 +343,10 @@ Settings live in `data` next to the executable by default. **Copy the whole fold
    │  ├─ app.json        language, theme, window state
    │  ├─ pearl.json      pearl cannon settings
    │  ├─ border.json     border cannon settings
-   │  └─ material.json   material converter settings
+   │  ├─ material.json   material converter settings
+   │  ├─ puppet.json     Puppet Logistics settings
+   │  ├─ puppet_stations.json  Puppet Logistics stations
+   │  └─ puppet_orders.json    Puppet Logistics ledger
    ├─ output/            exported CSV files (default folder)
    ├─ backups/           snapshot before each save, last 5 kept
    └─ .lock              prevents two instances overwriting each other
@@ -270,25 +369,29 @@ Other behaviour:
 
 ---
 
-## 7. Calculation notes and limitations
+## 8. Calculation notes and limitations
 
 - Flat/arc rounding and enumeration order for the pearl cannon, and the three-TNT solve for the border cannon, are line-by-line compatible with the legacy implementations; golden snapshot tests keep the numbers identical.
 - Some flight times produce negative TNT for the border cannon (the legacy app had no solution either); the table then reports “No valid configuration for this flight time”.
 - Box counts use 27 slots per box; **boxes needed** sums the per-material ceiling, which is the number of shulker boxes to carry.
 - The loading plan uses the theoretical minimum number of boxes, but one material may be split across two adjacent boxes; the dialog lists them by box number.
 - Material names and counts come straight from the imported list; conversion only changes boxes/stacks/items, never names.
+- Puppet Logistics only spawns and kills fake players; loading and transport are done by the in-game station. A stopped run may leave bots behind — use “Build cleanup” next to the ledger.
+- Execution is Windows-only and only targets windows of class `GLFW30` / `LWJGL` (launcher windows are never touched). Administrator rights depend on how Minecraft is launched.
+- Whether auto input is allowed is up to the server's rules; check before using it.
 
 ---
 
 ## Bundled mini-tools
 
-The download package also includes three console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use; their sources live in `src/tool_bundles/`, and the build specs are kept in a local-only `packaging/` folder (not tracked in git), so any of them can be rebuilt with PyInstaller.
+The download package also includes three console tools (double-click, follow the prompts, type `n` to quit). They are not part of this app and are not needed for normal use; their sources live in `src/tool_bundles/`, and the build specs are kept in a local-only `packaging/` folder (not tracked in git), so any of them can be rebuilt with PyInstaller. The repo also ships `station_configmaker.py` (Puppet Logistics station generator) as source only; build it yourself if you want an exe.
 
 | Tool | Purpose | Notes |
 |---|---|---|
 | `ConfigGenerator.exe` | Pearl cannon parameter generator | Walks through `/log projectiles full` measurements and writes an importable `<name>.json` next to the exe. Every prompt states the expected format with an example, and the saved path is printed when done |
 | `MainCannonConfigMaker.exe` | Main cannon record maker | Enter destination, coordinates, direction and blue/red array TNT; it prints a formatted record for announcements or archives |
 | `BorderCannonConfigMaker.exe` | Border cannon record maker | Enter destination, coordinates, direction and the minor/major counts of the three TNT charges; it prints a formatted record |
+| `station_configmaker.py` | Puppet Logistics station generator | Prompts for group tag, name, dimension, coordinates, prefix and note, then writes `{"version":1,"stations":[...]}` JSON that “Puppet Logistics → Import” can read directly |
 
 Coordinates use `(a, b)` with English parentheses and comma. The JSON written by `ConfigGenerator.exe` now uses `XZ_INIT_POSITION` and imports directly in the pearl cannon tool; files produced by the legacy generator still say `XZ_INIT_POSTION`, so that entry is ignored and the muzzle falls back to its default position — renaming the key fixes them.
 
