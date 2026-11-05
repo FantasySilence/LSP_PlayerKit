@@ -14,7 +14,7 @@ from lspkit.errors import AppError
 from .constants import MAX_TEXT_LENGTH
 from .core.convert import convert
 from .core.packing import plan
-from .core.parse import parse_materials
+from .core.parse import parse_materials, parse_sources
 
 
 def convert_action(payload: dict, ctx) -> dict:
@@ -35,6 +35,7 @@ def convert_action(payload: dict, ctx) -> dict:
     result["warnings"] = parsed["warnings"]
     result["skipped"] = parsed["skipped"]
     result["truncated"] = parsed["truncated"]
+    result["sources"] = parsed.get("sources", [])
     return result
 
 
@@ -56,6 +57,7 @@ def pack_action(payload: dict, ctx) -> dict:
     result["warnings"] = parsed["warnings"]
     result["skipped"] = parsed["skipped"]
     result["truncated"] = parsed["truncated"]
+    result["sources"] = parsed.get("sources", [])
     return result
 
 
@@ -92,23 +94,61 @@ def _read(payload: dict, ctx) -> tuple[dict, dict]:
     校验请求、解析清单并取回本工具设置.
     """
 
-    text = payload.get("text")
-    if not isinstance(text, str) or not text.strip():
-        raise AppError("INVALID_INPUT", "请先导入材料清单")
-    if len(text) > MAX_TEXT_LENGTH:
-        raise AppError(
-            "INPUT_TOO_LARGE", "材料清单太长，请分批换算", f"{len(text)} 字符"
-        )
+    raw_sources = payload.get("texts")
+    if raw_sources is not None:
+        parsed = parse_sources(_normalize_sources(raw_sources))
+    else:
+        parsed = parse_materials(_normalize_text(payload.get("text")))
 
-    settings = ctx.settings("material")
-    parsed = parse_materials(text)
     if not parsed["entries"]:
         raise AppError(
             "NO_ENTRIES",
             "没有识别出任何材料条目",
             "请确认导入的是投影模组导出的材料清单 CSV",
         )
-    return parsed, settings
+    return parsed, ctx.settings("material")
+
+
+def _normalize_text(text) -> str:
+    """
+    校验单份清单的文本.
+    """
+
+    if not isinstance(text, str) or not text.strip():
+        raise AppError("INVALID_INPUT", "请先导入材料清单")
+    if len(text) > MAX_TEXT_LENGTH:
+        raise AppError(
+            "INPUT_TOO_LARGE", "材料清单太长，请分批换算", f"{len(text)} 字符"
+        )
+    return text
+
+
+def _normalize_sources(raw) -> list[dict]:
+    """
+    校验多份清单的请求体，长度上限按总和计算.
+    """
+
+    if not isinstance(raw, list) or not raw:
+        raise AppError("INVALID_INPUT", "请先导入材料清单")
+
+    sources: list[dict] = []
+    total = 0
+    for item in raw:
+        if not isinstance(item, dict):
+            raise AppError("INVALID_INPUT", "材料清单格式错误")
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        total += len(text)
+        if total > MAX_TEXT_LENGTH:
+            raise AppError(
+                "INPUT_TOO_LARGE", "材料清单太长，请分批换算", f"{total} 字符"
+            )
+        sources.append({"name": str(item.get("name") or "清单"), "text": text})
+
+    if not sources:
+        raise AppError("INVALID_INPUT", "请先导入材料清单")
+    return sources
 
 
 def _stack_overrides(payload: dict) -> dict:

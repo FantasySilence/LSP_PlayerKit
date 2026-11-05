@@ -160,19 +160,41 @@ class Api:
     def file_open_text(self) -> dict:
         return envelope(self._open_text)
 
+    def file_open_texts(self) -> dict:
+        return envelope(self._open_texts)
+
     def _open_text(self) -> dict:
         import webview
 
+        paths = self._pick_files(webview, allow_multiple=False)
+        if not paths:
+            return {"cancelled": True}
+        return self._read_text_file(Path(paths[0]))
+
+    def _open_texts(self) -> dict:
+        import webview
+
+        paths = self._pick_files(webview, allow_multiple=True)
+        if not paths:
+            return {"cancelled": True}
+        return {"files": [self._read_text_file(Path(path)) for path in paths]}
+
+    def _pick_files(self, webview, allow_multiple: bool) -> tuple:
         window = self._rt.window
         if window is None:
             raise AppError("NO_WINDOW", "窗口尚未就绪")
         result = window.create_file_dialog(
             webview.FileDialog.OPEN,
+            allow_multiple=allow_multiple,
             file_types=("文本与表格 (*.txt;*.csv;*.tsv;*.log)", "所有文件 (*.*)"),
         )
         if not result:
-            return {"cancelled": True}
-        path = Path(result[0] if isinstance(result, (list, tuple)) else result)
+            return ()
+        if isinstance(result, (list, tuple)):
+            return tuple(result)
+        return (result,)
+
+    def _read_text_file(self, path: Path) -> dict:
         try:
             size = path.stat().st_size
         except OSError as exc:

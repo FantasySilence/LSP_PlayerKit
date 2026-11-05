@@ -219,6 +219,40 @@ def test_material_rejects_empty_input(api):
     assert nothing["error"]["code"] == "NO_ENTRIES"
 
 
+def test_material_merges_multiple_lists(api):
+    texts = [
+        {"name": "a.csv", "text": "铁锭 10\n木棍 5"},
+        {"name": "b.csv", "text": "铁锭 6\n苹果 2"},
+    ]
+    result = api.tool_call("material", "convert", {"texts": texts})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    counts = {row["name"]: row["count"] for row in data["items"]}
+    assert counts == {"铁锭": 16, "木棍": 5, "苹果": 2}
+    assert data["totals"]["kinds"] == 3
+    assert data["sources"] == [
+        {"name": "a.csv", "kinds": 2, "items": 15},
+        {"name": "b.csv", "kinds": 2, "items": 8},
+    ]
+
+    packed = api.tool_call("material", "pack", {"texts": texts})
+    assert packed["ok"] is True, packed
+    assert packed["data"]["totals"]["kinds"] == 3
+
+
+def test_material_multi_lists_validation(api):
+    empty = api.tool_call("material", "convert", {"texts": []})
+    assert empty["ok"] is False
+    assert empty["error"]["code"] == "INVALID_INPUT"
+
+    unparsed = api.tool_call(
+        "material", "convert", {"texts": [{"name": "x.csv", "text": "no numbers"}]}
+    )
+    assert unparsed["ok"] is False
+    assert unparsed["error"]["code"] == "NO_ENTRIES"
+
+
 def test_material_settings_change_capacity(api):
     current = api.settings_get("material")["data"]
     assert current == {"stackSize": "64", "shulkerSlots": 27, "exportDir": ""}
@@ -372,3 +406,33 @@ def test_file_save_text_uses_export_dir(api):
     custom = api._rt.location.path / "custom_out"
     api.file_save_text("plan.csv", "a,b", str(custom))
     assert window.kwargs["directory"] == str(custom)
+
+
+def test_file_open_texts_reads_multiple(api, tmp_path):
+    first = tmp_path / "a.csv"
+    second = tmp_path / "b.csv"
+    first.write_text('"Item","Total"\n"stone",12\n', encoding="utf-8")
+    second.write_text("dirt 3\n", encoding="utf-8")
+
+    class _MultiWindow:
+        def __init__(self) -> None:
+            self.kwargs: dict | None = None
+
+        def create_file_dialog(self, *args, **kwargs):
+            self.kwargs = kwargs
+            return (str(first), str(second))
+
+    window = _MultiWindow()
+    api._rt.window = window
+
+    result = api.file_open_texts()
+    assert result["ok"] is True, result
+    files = result["data"]["files"]
+    assert [item["name"] for item in files] == ["a.csv", "b.csv"]
+    assert window.kwargs["allow_multiple"] is True
+    assert "stone" in files[0]["text"]
+    assert "dirt" in files[1]["text"]
+
+    single = api.file_open_text()
+    assert single["data"]["name"] == "a.csv"
+    assert window.kwargs["allow_multiple"] is False

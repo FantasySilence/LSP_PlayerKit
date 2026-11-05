@@ -19,8 +19,18 @@ const props = defineProps<{ tool: ToolDef }>()
 
 const STACK_OPTIONS = ['64', '16', '1']
 
-const text = ref('')
-const fileName = ref('')
+interface SourceFile {
+  id: string
+  name: string
+  text: string
+  enabled: boolean
+}
+
+const sources = ref<SourceFile[]>([])
+const sourceStats = ref<Record<string, { kinds: number; items: number }>>({})
+let sourceSeq = 0
+
+const activeSources = computed(() => sources.value.filter((source) => source.enabled))
 const items = ref<MaterialRow[]>([])
 const totals = ref<MaterialTotals | null>(null)
 const warnings = ref<{ line: number; text: string }[]>([])
@@ -75,7 +85,10 @@ const allIgnoredSelected = computed(
     [...selected.value].every((name) => ignored.value.has(name)),
 )
 const defaultExportName = computed(() => {
-  const base = fileName.value.replace(/\.[^.]+$/, '').trim()
+  const active = activeSources.value
+  if (!active.length) return 'materials.csv'
+  const stem = active.length === 1 ? active[0].name : 'merged'
+  const base = stem.replace(/\.[^.]+$/, '').trim()
   return base ? `${base}_converted.csv` : 'materials.csv'
 })
 const currentWarnings = computed(() => warnings.value.slice(0, 3))
@@ -172,21 +185,22 @@ async function setStack(value: string) {
     const data = clone(getSettings(props.tool.id))
     data.stackSize = value
     await saveSettings(props.tool.id, data)
-    if (text.value) await convert()
+    if (activeSources.value.length) await convert()
   } catch (error) {
     notifyError(error)
   }
 }
 
 async function convert() {
-  if (!text.value) {
-    notify('info', t('material.msg.noFile'))
+  const active = activeSources.value
+  if (!active.length) {
+    notify('info', t(sources.value.length ? 'material.msg.noActive' : 'material.msg.noFile'))
     return
   }
   busy.value = true
   try {
     const result = await callTool<MaterialResult>(props.tool.id, 'convert', {
-      text: text.value,
+      texts: active.map((source) => ({ name: source.name, text: source.text })),
       stacks: stacks.value,
       ignore: [...ignored.value],
     })
@@ -196,27 +210,41 @@ async function convert() {
     warnings.value = result.warnings
     skipped.value = result.skipped
     truncated.value = result.truncated
+    sourceStats.value = Object.fromEntries(
+      (result.sources ?? []).map((source) => [
+        source.name,
+        { kinds: source.kinds, items: source.items },
+      ]),
+    )
   } catch (error) {
-    items.value = []
-    totals.value = null
-    ignoredItems.value = []
-    warnings.value = []
-    skipped.value = 0
+    clearResult()
     notifyError(error)
   } finally {
     busy.value = false
   }
 }
 
+function clearResult() {
+  items.value = []
+  totals.value = null
+  ignoredItems.value = []
+  warnings.value = []
+  skipped.value = 0
+  truncated.value = false
+  sourceStats.value = {}
+  selected.value = new Set()
+}
+
 async function pack() {
-  if (!text.value) {
-    notify('info', t('material.msg.noFile'))
+  const active = activeSources.value
+  if (!active.length) {
+    notify('info', t(sources.value.length ? 'material.msg.noActive' : 'material.msg.noFile'))
     return
   }
   packingBusy.value = true
   try {
     const result = await callTool<PackingResult>(props.tool.id, 'pack', {
-      text: text.value,
+      texts: active.map((source) => ({ name: source.name, text: source.text })),
       stacks: stacks.value,
       ignore: [...ignored.value],
     })
@@ -229,28 +257,50 @@ async function pack() {
   }
 }
 
-async function readFile() {
+async function readFiles() {
   try {
-    const result = await invoke<{ cancelled?: boolean; name?: string; text?: string }>(
-      'file_open_text',
-    )
-    if (result?.cancelled || typeof result?.text !== 'string') return
-    if (!result.text.trim()) {
+    const result = await invoke<{
+      cancelled?: boolean
+      files?: { name?: string; text?: string }[]
+    }>('file_open_texts')
+    if (result?.cancelled || !Array.isArray(result?.files)) return
+
+    let added = 0
+    for (const file of result.files) {
+      const body = typeof file?.text === 'string' ? file.text : ''
+      if (!body.trim()) continue
+      sourceSeq += 1
+      sources.value.push({
+        id: `source-${sourceSeq}`,
+        name: (file.name ?? '').trim() || t('material.sources.unnamed'),
+        text: body,
+        enabled: true,
+      })
+      added += 1
+    }
+    if (!added) {
       notify('info', t('material.msg.emptyFile'))
       return
     }
-    text.value = result.text
-    fileName.value = result.name ?? ''
     selected.value = new Set()
-    stacks.value = {}
-    ignored.value = new Set()
-    ignoredItems.value = []
     exportName.value = ''
-    notify('success', t('material.msg.imported', { name: result.name ?? '' }))
+    notify('success', t('material.msg.importedMany', { n: added }))
     await convert()
   } catch (error) {
     notifyError(error)
   }
+}
+
+async function toggleSource(source: SourceFile) {
+  source.enabled = !source.enabled
+  if (activeSources.value.length) await convert()
+  else clearResult()
+}
+
+async function removeSource(source: SourceFile) {
+  sources.value = sources.value.filter((item) => item.id !== source.id)
+  if (activeSources.value.length) await convert()
+  else clearResult()
 }
 
 function csvCell(value: unknown): string {
@@ -368,13 +418,38 @@ onMounted(async () => {
 
       <div class="panel-body">
         <div class="import-card">
-          <button class="btn primary block import-btn" :disabled="busy" @click="readFile">
+          <button class="btn primary block import-btn" :disabled="busy" @click="readFiles">
             {{ t('material.action.import') }}
           </button>
           <div class="import-file">
-            <span v-if="fileName" class="file-name" :title="fileName">{{ fileName }}</span>
-            <span v-else class="muted">{{ t('material.import.hint') }}</span>
+            <span v-if="sources.length" class="muted">
+              {{ t('material.sources.count', { n: sources.length, active: activeSources.length }) }}
+            </span>
+            <span v-else class="muted">{{ t('material.sources.hint') }}</span>
           </div>
+        </div>
+
+        <div v-if="sources.length" class="source-list">
+          <label
+            v-for="source in sources"
+            :key="source.id"
+            class="source-row"
+            :class="{ off: !source.enabled }"
+          >
+            <input type="checkbox" :checked="source.enabled" @change="toggleSource(source)" />
+            <span class="source-name" :title="source.name">{{ source.name }}</span>
+            <span v-if="sourceStats[source.name]" class="source-meta mono">
+              {{ sourceStats[source.name].kinds }} · {{ sourceStats[source.name].items }}
+            </span>
+            <button
+              class="source-remove"
+              type="button"
+              :title="t('material.action.removeList')"
+              @click.prevent="removeSource(source)"
+            >
+              ✕
+            </button>
+          </label>
         </div>
 
         <div class="field">
@@ -673,6 +748,70 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--brand);
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 132px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.source-row.off {
+  color: var(--muted);
+}
+
+.source-row.off .source-name {
+  text-decoration: line-through;
+}
+
+.source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.source-remove {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.source-remove:hover {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .list {

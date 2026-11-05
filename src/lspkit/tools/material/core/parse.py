@@ -117,3 +117,50 @@ def parse_materials(text: str) -> dict:
         "skipped": skipped,
         "truncated": truncated,
     }
+
+
+def parse_sources(sources: list[dict]) -> dict:
+    """
+    解析多份材料清单，跨清单的同名材料按数量求和.
+    """
+
+    merged: dict[str, dict] = {}
+    warnings: list[dict] = []
+    summary: list[dict] = []
+    skipped = 0
+    truncated = False
+
+    for source in sources:
+        name = str(source.get("name") or "清单")
+        parsed = parse_materials(source.get("text") or "")
+
+        kinds = 0
+        items = 0
+        for entry in parsed["entries"]:
+            kinds += 1
+            items += int(entry["count"])
+            if entry["name"] in merged:
+                merged[entry["name"]]["count"] += int(entry["count"])
+            elif len(merged) >= MAX_KINDS:
+                truncated = True
+            else:
+                merged[entry["name"]] = {
+                    "name": entry["name"],
+                    "count": int(entry["count"]),
+                }
+
+        skipped += int(parsed["skipped"])
+        truncated = truncated or bool(parsed["truncated"])
+        for warning in parsed["warnings"]:
+            if len(warnings) < MAX_WARNINGS:
+                warnings.append({**warning, "source": name})
+
+        summary.append({"name": name, "kinds": kinds, "items": items})
+
+    return {
+        "entries": list(merged.values()),
+        "warnings": warnings,
+        "skipped": skipped,
+        "truncated": truncated,
+        "sources": summary,
+    }

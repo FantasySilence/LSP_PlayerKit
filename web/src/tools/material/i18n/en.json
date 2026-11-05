@@ -1,9 +1,9 @@
 {
   "material.name": "Material Converter",
-  "material.description": "Import a material list and convert it into shulker boxes, stacks and items",
+  "material.description": "Import one or more material lists and convert them into shulker boxes, stacks and items",
   "material.panel.input": "Material list",
   "material.panel.result": "Result",
-  "material.panel.tip": "Supports Litematica material list CSV (GBK or UTF-8). Names in the result are identical to the imported list.",
+  "material.panel.tip": "Supports Litematica material list CSV (GBK or UTF-8). Multiple lists are merged by material name; names in the result stay identical to the imported lists.",
   "material.import.hint": "Litematica material list CSV",
   "material.list.title": "Pending materials",
   "material.list.empty": "No material list imported yet",
@@ -78,5 +78,11 @@
   "material.pack.copied": "Loading plan copied",
   "material.pack.tip": "Fill boxes in order; the number is how many slots the material takes.",
   "material.pack.scrollHint": "Scroll to see all",
-  "material.empty": "Import a material list to convert automatically"
+  "material.empty": "Import a material list to convert automatically",
+  "material.sources.hint": "Pick several lists at once, then tick the ones to include",
+  "material.sources.count": "{n} list(s) · {active} enabled",
+  "material.sources.unnamed": "Untitled list",
+  "material.action.removeList": "Remove list",
+  "material.msg.importedMany": "Imported {n} list(s)",
+  "material.msg.noActive": "Enable at least one material list"
 }

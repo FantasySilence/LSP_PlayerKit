@@ -111,6 +111,12 @@ export interface MaterialIgnored {
   stack: number
 }
 
+export interface MaterialSourceSummary {
+  name: string
+  kinds: number
+  items: number
+}
+
 export interface MaterialResult {
   items: MaterialRow[]
   totals: MaterialTotals
@@ -118,6 +124,7 @@ export interface MaterialResult {
   warnings: { line: number; text: string }[]
   skipped: number
   truncated: boolean
+  sources?: MaterialSourceSummary[]
 }
 
 export interface PackingEntry {
@@ -143,4 +150,5 @@ export interface PackingResult {
   warnings: { line: number; text: string }[]
   skipped: number
   truncated: boolean
+  sources?: MaterialSourceSummary[]
 }

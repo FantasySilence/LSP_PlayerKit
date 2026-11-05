@@ -1,9 +1,9 @@
 {
   "material.name": "材料换算器",
-  "material.description": "导入材料清单，换算成潜影盒 / 组 / 个",
+  "material.description": "导入一个或多个材料清单，换算成潜影盒 / 组 / 个",
   "material.panel.input": "材料清单",
   "material.panel.result": "换算结果",
-  "material.panel.tip": "支持 Litematica 导出的材料清单 CSV（GBK / UTF-8 均可）。换算结果中的材料名称与导入清单完全一致。",
+  "material.panel.tip": "支持 Litematica 导出的材料清单 CSV（GBK / UTF-8 均可）。多份清单按材料名称合并数量，结果中的名称与导入清单完全一致。",
   "material.import.hint": "支持投影模组导出的材料清单 CSV",
   "material.list.title": "待处理材料",
   "material.list.empty": "尚未导入材料列表",
@@ -78,5 +78,11 @@
   "material.pack.copied": "装填清单已复制",
   "material.pack.tip": "按盒号依次装填；数字为该材料在盒内占的格数。",
   "material.pack.scrollHint": "滚动查看全部",
-  "material.empty": "导入材料列表后自动换算"
+  "material.empty": "导入材料列表后自动换算",
+  "material.sources.hint": "可一次选择多个清单，导入后勾选参与换算的文件",
+  "material.sources.count": "{n} 份清单 · {active} 份参与换算",
+  "material.sources.unnamed": "未命名清单",
+  "material.action.removeList": "移除清单",
+  "material.msg.importedMany": "已导入 {n} 份清单",
+  "material.msg.noActive": "请至少勾选一份材料清单"
 }
