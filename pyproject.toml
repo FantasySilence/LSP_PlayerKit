@@ -1,6 +1,6 @@
 [project]
 name = "lsp-playerkit"
-version = "1.1.5"
+version = "1.2.0"
 description = "LSP 服务器玩家工具箱：珍珠炮 / 边境炮 / 材料换算"
 requires-python = ">=3.9"
 dependencies = ["pywebview>=6,<7", "numpy>=1.24,<2"]
@@ -8,6 +8,9 @@ dependencies = ["pywebview>=6,<7", "numpy>=1.24,<2"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "win32gui: 需要真实桌面窗口的测试（默认跳过，见 README）",
+]
 
 [tool.ruff]
 line-length = 100
