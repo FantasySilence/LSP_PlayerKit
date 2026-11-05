@@ -10,6 +10,7 @@
   --brand: #3ee0c4;
   --brand-dim: #1f8f80;
   --brand-soft: rgba(62, 224, 196, 0.12);
+  --select-bg: rgba(62, 224, 196, 0.22);
   --accent: #ff6a4d;
   --accent-soft: rgba(255, 106, 77, 0.14);
   --ok: #59d499;
@@ -43,6 +44,7 @@
   --brand: #0e9f8a;
   --brand-dim: #0b7a69;
   --brand-soft: rgba(14, 159, 138, 0.12);
+  --select-bg: rgba(14, 159, 138, 0.2);
   --accent: #e2542f;
   --accent-soft: rgba(226, 84, 47, 0.12);
   --shadow: 0 10px 24px rgba(20, 32, 50, 0.1);
