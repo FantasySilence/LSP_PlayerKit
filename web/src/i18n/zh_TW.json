@@ -63,5 +63,9 @@
   "direction.south": "南",
   "direction.west": "西",
   "direction.unknown": "未確定",
-  "direction.manual": "手動"
+  "direction.manual": "手動",
+  "unit.pcs": "個",
+  "unit.perArray": "個/陣列",
+  "unit.slotsPerBox": "格/盒",
+  "unit.exportHint": "留空 = data/output"
 }

@@ -239,7 +239,7 @@ watch(
             <div v-for="field in group.fields" :key="field.key" class="field">
               <label class="field-label">
                 <span>{{ t(field.label) }}</span>
-                <span v-if="field.unit" class="unit">{{ field.unit }}</span>
+                <span v-if="field.unit" class="unit">{{ field.unit.includes('.') ? t(field.unit) : field.unit }}</span>
               </label>
 
               <select

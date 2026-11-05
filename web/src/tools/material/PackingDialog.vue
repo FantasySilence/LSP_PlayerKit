@@ -231,7 +231,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   align-items: start;
   gap: 10px;
   padding: 0 18px 14px;

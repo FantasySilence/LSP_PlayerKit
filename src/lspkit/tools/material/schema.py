@@ -29,7 +29,7 @@ SCHEMA = SettingsSchema(
                         {"value": "1", "label": "material.stack.1"},
                     ],
                 ),
-                Field("shulkerSlots", "material.field.shulkerSlots", "int", D["shulkerSlots"], 1, 27, 1, unit="格/盒"),
+                Field("shulkerSlots", "material.field.shulkerSlots", "int", D["shulkerSlots"], 1, 27, 1, unit="unit.slotsPerBox"),
             ],
         ),
         Group(
@@ -41,7 +41,7 @@ SCHEMA = SettingsSchema(
                     "material.field.exportDir",
                     "path",
                     D["exportDir"],
-                    unit="留空 = data/output",
+                    unit="unit.exportHint",
                 ),
             ],
         ),

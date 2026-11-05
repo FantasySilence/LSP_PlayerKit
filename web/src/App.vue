@@ -273,12 +273,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .rail-label {
   font-size: 10px;
-  line-height: 1.2;
+  line-height: 1.25;
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 100%;
+  overflow-wrap: break-word;
 }
 
 .rail-spacer {

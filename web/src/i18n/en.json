@@ -63,5 +63,9 @@
   "direction.south": "South",
   "direction.west": "West",
   "direction.unknown": "Unknown",
-  "direction.manual": "Manual"
+  "direction.manual": "Manual",
+  "unit.pcs": "pcs",
+  "unit.perArray": "per array",
+  "unit.slotsPerBox": "slots/box",
+  "unit.exportHint": "empty = data/output"
 }

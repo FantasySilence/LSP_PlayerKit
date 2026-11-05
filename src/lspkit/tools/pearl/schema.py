@@ -18,8 +18,8 @@ SCHEMA = SettingsSchema(
             "basic",
             "pearl.settings.basic",
             [
-                Field("maxTnt", "pearl.field.maxTnt", "int", D["maxTnt"], 1, 100000, 10, unit="个"),
-                Field("tntPerUnit", "pearl.field.tntPerUnit", "int", D["tntPerUnit"], 1, 4096, 10, unit="个/阵列"),
+                Field("maxTnt", "pearl.field.maxTnt", "int", D["maxTnt"], 1, 100000, 10, unit="unit.pcs"),
+                Field("tntPerUnit", "pearl.field.tntPerUnit", "int", D["tntPerUnit"], 1, 4096, 10, unit="unit.perArray"),
                 Field("originX", "pearl.field.originX", "float", D["originX"], digits=4),
                 Field("originZ", "pearl.field.originZ", "float", D["originZ"], digits=4),
                 Field("targetX", "pearl.field.targetX", "float", D["targetX"], digits=4),
