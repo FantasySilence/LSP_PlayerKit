@@ -44,7 +44,7 @@
   "storage.source.cli": "命令列指定",
   "storage.source.env": "環境變數指定",
   "about.intro": "LSP 伺服器的玩家工具箱，計算與設定資料都在本機處理。",
-  "about.docs": "開啟設定文件",
+  "about.docs": "開啟說明文件",
   "about.repo": "GitHub 儲存庫",
   "about.tech": "技術棧：Python 3.9 · pywebview · Vue 3",
   "about.data": "所有計算與設定都在本機完成，不連網、不上傳",

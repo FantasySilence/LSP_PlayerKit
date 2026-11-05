@@ -261,10 +261,14 @@ class Api:
         raw = self._read_bytes(path, MAX_TEXT_FILE_BYTES)
         return {"kind": "text", "path": str(path), "name": path.name, "text": _decode_text(raw)}
 
-    def file_save_text(self, filename: str, content: str, directory: str = "") -> dict:
-        return envelope(self._save_text, filename, content, directory)
+    def file_save_text(
+        self, filename: str, content: str, directory: str = "", bom: bool = True
+    ) -> dict:
+        return envelope(self._save_text, filename, content, directory, bom)
 
-    def _save_text(self, filename: str, content: str, directory: str = "") -> dict:
+    def _save_text(
+        self, filename: str, content: str, directory: str = "", bom: bool = True
+    ) -> dict:
         import webview
 
         if not isinstance(content, str) or not content:
@@ -286,7 +290,8 @@ class Api:
             return {"cancelled": True}
         target = Path(result[0] if isinstance(result, (list, tuple)) else result)
         try:
-            with open(target, "w", encoding="utf-8-sig", newline="") as f:
+            encoding = "utf-8-sig" if bom else "utf-8"
+            with open(target, "w", encoding=encoding, newline="") as f:
                 f.write(content)
         except OSError as exc:
             raise AppError("WRITE_FAILED", "无法写入该文件", str(exc)) from exc
@@ -296,11 +301,13 @@ class Api:
     def clipboard_write(self, text: str) -> dict:
         return envelope(_clipboard_write, text)
 
-    def open_doc(self) -> dict:
+    def open_manual(self, locale: str = "zh_CN") -> dict:
         def run() -> None:
-            target = resource_dir() / "docs" / "Config.pdf"
+            english = str(locale).lower().startswith("en")
+            name = "README.en.pdf" if english else "README.pdf"
+            target = resource_dir() / "docs" / name
             if not target.exists():
-                raise AppError("NOT_FOUND", "没有找到文档", str(target))
+                raise AppError("NOT_FOUND", "没有找到说明文件", str(target))
             os.startfile(str(target))  # noqa: S606
 
         return envelope(run)
@@ -368,11 +375,20 @@ def _clipboard_write(text: str) -> bool:
 
     user32 = ctypes.windll.user32
     kernel32 = ctypes.windll.kernel32
+    # 64 位下 HANDLE/HGLOBAL 必须显式声明，否则 ctypes 按 32 位 int 处理会溢出
     kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
     kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
     kernel32.GlobalLock.restype = ctypes.c_void_p
     kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
     kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+    user32.OpenClipboard.argtypes = [wintypes.HWND]
+    user32.OpenClipboard.restype = wintypes.BOOL
+    user32.EmptyClipboard.argtypes = []
+    user32.EmptyClipboard.restype = wintypes.BOOL
+    user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+    user32.SetClipboardData.restype = wintypes.HANDLE
+    user32.CloseClipboard.argtypes = []
+    user32.CloseClipboard.restype = wintypes.BOOL
 
     data = str(text).encode("utf-16-le") + b"\x00\x00"
     handle = kernel32.GlobalAlloc(gmem_moveable, len(data))

@@ -44,7 +44,7 @@
   "storage.source.cli": "From command line",
   "storage.source.env": "From environment",
   "about.intro": "A toolbox for LSP players. All calculation and configuration stays local.",
-  "about.docs": "Open configuration docs",
+  "about.docs": "Open manual",
   "about.repo": "GitHub repository",
   "about.tech": "Stack: Python 3.9 · pywebview · Vue 3",
   "about.data": "Everything runs locally — no network, no uploads",

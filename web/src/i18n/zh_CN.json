@@ -44,7 +44,7 @@
   "storage.source.cli": "命令行指定",
   "storage.source.env": "环境变量指定",
   "about.intro": "LSP 服务器的玩家工具箱，计算与配置数据都在本地处理。",
-  "about.docs": "打开配置文档",
+  "about.docs": "打开说明文件",
   "about.repo": "GitHub 仓库",
   "about.tech": "技术栈：Python 3.9 · pywebview · Vue 3",
   "about.data": "所有计算与配置都在本地完成，不联网、不上传",

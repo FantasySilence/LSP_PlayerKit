@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { invoke } from '../platform/bridge'
-import { t } from '../platform/i18n'
+import { locale, t } from '../platform/i18n'
 import { notifyError } from '../platform/toast'
 
 const props = defineProps<{ version: string }>()
@@ -10,7 +10,7 @@ const REPO_URL = 'https://github.com/FantasySilence/LSP_PlayerKit'
 
 async function openDoc() {
   try {
-    await invoke('open_doc')
+    await invoke('open_manual', locale.value)
   } catch (error) {
     notifyError(error)
   }

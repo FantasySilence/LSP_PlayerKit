@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import { invoke } from '../platform/bridge'
-import { t } from '../platform/i18n'
+import { locale, t } from '../platform/i18n'
 import { clone, loadSettings, resetSettings, saveSettings, settings } from '../platform/settings'
 import { notify, notifyError } from '../platform/toast'
 import type { FieldDef, StorageInfo, ToolDef } from '../platform/types'
@@ -177,7 +177,7 @@ async function importBundle() {
 
 async function openDoc() {
   try {
-    await invoke('open_doc')
+    await invoke('open_manual', locale.value)
   } catch (error) {
     notifyError(error)
   }
