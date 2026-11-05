@@ -233,11 +233,13 @@ You can add, edit and delete stations, or import the legacy configuration:
 - the old `stops.json` (same object shape as the legacy tool);
 - lines of `name x y z prefix [group] dimension`; the `end_` / `ov_` / `nether_` prefixes set the dimension and are stripped.
 
-Names written as `district·place` are split into group + name when read; a group tag cannot contain spaces. A note holds at most 60 characters and appears inside the card on hover, wrapping to at most two lines.
+Names written as `district·place` are split into group + name when read; a group tag cannot contain spaces. A note holds at most 60 characters and appears inside the card on hover, wrapping to at most two lines. The station list below can also be filtered by group tag (All / each group), matching the dropdowns in the shipment panel.
 
 Stations can also be exported as JSON (importable again) or as `name x y z prefix group dimension` text; exports go to the `output` folder inside the data directory by default.
 
 Bot names come from a template, `bot_{origin}_{dest}_{index}` by default. The final name must be 3–16 characters (Minecraft username limit); prefixes that are too long raise an error asking you to shorten them.
+
+![Stations and group filter](../README_img/en/10-puppet-stations.png)
 
 ### 5.2 Generating commands
 
@@ -247,6 +249,8 @@ Pick the origin, destination, number of boxes and the operation:
 - bot count = ⌈boxes / boxes-per-bot⌉, then split into batches;
 - “Spawn at origin” / “Spawn at destination” decides which station the spawn command targets; they are normally used as a pair: spawn at the origin and load, kill them, then spawn the same bots at the destination to unload;
 - results are split into Spawn and Kill tabs, with copy-all and `.txt` export (also usable as a `.mcfunction`). The **Clear commands** button next to Copy all empties the current preview.
+
+![Order and command preview](../README_img/en/9-puppet-overview.png)
 
 Commands look like:
 
@@ -312,20 +316,46 @@ Click a row to restore the commands that run saved into the command preview abov
 
 ## 6. Settings
 
-Click the gear (or press `Ctrl+,`) to open the settings drawer. It has three tabs:
+Click the gear (or press `Ctrl+,`) to open the settings drawer. The **Tool options** tab follows the active tool; the sections below describe it per app. Saved values apply immediately, and Reset / Import live at the bottom.
 
-- **Tool options**: generated from the active tool's schema; saved values apply immediately. Reset and import live at the bottom.
-- **Data & storage**: view/change the data folder, open it, export/import a settings bundle.
-- **About**: version, stack and a shortcut to the manual (README PDF).
+### 6.1 Pearl Cannon
+
+Default muzzle and target coordinates, maximum TNT, per-array cap, firing mode and the rounding parameters for flat/arc shots. Full list: [2.2 Settings](#22-settings).
+
+![Pearl Cannon settings](../README_img/en/11-settings-pearl.png)
+
+### 6.2 Border Cannon
+
+Default muzzle and target coordinates, expected flight time, direction reference and legacy-compatibility mode. Full list: [3.2 Settings](#32-settings).
+
+![Border Cannon settings](../README_img/en/12-settings-border.png)
+
+### 6.3 Material Converter
+
+Maximum stack size, shulker slots, export folder and export format. Full list: [4.8 Settings](#48-settings).
+
+![Material Converter settings](../README_img/en/13-settings-material.png)
+
+### 6.4 Puppet Logistics
+
+Boxes per bot, bots per batch and the bot name template, plus the run options (allow auto input, command interval, countdown, input mode, lag retries, clipboard restore). Full list: [5.5 Settings](#55-settings).
+
+![Puppet Logistics settings](../README_img/en/14-settings-puppet.png)
+
+### 6.5 Data & storage
+
+The **Data & storage** tab shows or changes the data folder, opens it, and exports/imports a settings bundle.
 
 **Import config** accepts two kinds of files:
 
 - a single JSON exported by this app (e.g. `pearl.json`);
 - the legacy `resources/settings/settings.json` from either original project — detected and converted automatically (the legacy border cannon switches to the legacy direction mode).
 
-The **About** tab shows the version, stack, privacy note and license, with shortcuts to the manual (the Chinese/English README as PDF) and the GitHub repository.
+![Data & storage](../README_img/en/4-storage.png)
 
-![Settings · Tool options](../README_img/en/3-settings.png)
+### 6.6 About
+
+The **About** tab shows the version, stack, privacy note and license, with shortcuts to the manual (the Chinese/English README as PDF) and the GitHub repository.
 
 ![About](../README_img/en/6-about.png)
 
