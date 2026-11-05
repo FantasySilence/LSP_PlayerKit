@@ -8,6 +8,7 @@
 # =================================== #
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -34,7 +35,7 @@ def test_app_state_lists_tools(api):
     result = api.app_state()
     assert result["ok"] is True
     ids = [tool["id"] for tool in result["data"]["tools"]]
-    assert ids == ["pearl", "border", "material"]
+    assert ids == ["pearl", "border", "material", "puppet"]
 
 
 def test_pearl_calculate_and_decode(api):
@@ -517,3 +518,27 @@ def test_material_localizes_preparsed_entries(api):
     )
     assert result["ok"] is True, result
     assert [row["name"] for row in result["data"]["items"]] == ["Stone"]
+
+
+def test_open_manual_opens_readme_pdf(api, monkeypatch):
+    if not hasattr(os, "startfile"):
+        pytest.skip("startfile 仅 Windows 提供")
+
+    import lspkit.api as api_module
+
+    opened: list = []
+    monkeypatch.setattr(api_module.os, "startfile", lambda path: opened.append(path))
+
+    assert api.open_manual("zh_CN")["ok"] is True
+    assert api.open_manual("en")["ok"] is True
+    assert opened[0].endswith("README.pdf")
+    assert opened[1].endswith("README.en.pdf")
+
+
+def test_open_manual_reports_missing_file(api, monkeypatch, tmp_path):
+    import lspkit.api as api_module
+
+    monkeypatch.setattr(api_module, "resource_dir", lambda: tmp_path)
+    result = api.open_manual("zh_CN")
+    assert result["ok"] is False
+    assert result["error"]["code"] == "NOT_FOUND"

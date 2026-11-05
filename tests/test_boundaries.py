@@ -11,7 +11,7 @@ import ast
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parents[1] / "src" / "lspkit" / "tools"
-TOOL_IDS = ("pearl", "border", "material")
+TOOL_IDS = ("pearl", "border", "material", "puppet")
 
 
 def _imports(path: Path) -> set[str]:
