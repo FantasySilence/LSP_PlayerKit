@@ -1,6 +1,6 @@
 [project]
 name = "lsp-playerkit"
-version = "1.1.4"
+version = "1.1.5"
 description = "LSP 服务器玩家工具箱：珍珠炮 / 边境炮 / 材料换算"
 requires-python = ">=3.9"
 dependencies = ["pywebview>=6,<7", "numpy>=1.24,<2"]
