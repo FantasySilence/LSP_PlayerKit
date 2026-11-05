@@ -143,10 +143,14 @@ Converts a Litematica material list into **shulker boxes / stacks / items** and 
 
 ### 4.1 Import material lists
 
-- Click **Import material list** to pick **several** CSVs at once (click again to append). **GBK and UTF-8** are both supported.
+- Click **Import material list** to pick **several** files at once (click again to append): material lists (**CSV / TXT**, GBK or UTF-8) and **`.litematic` schematics** can be mixed.
+- A `.litematic` is counted by **item form**, not by block form: wall signs/torches/heads, water/lava/powder-snow cauldrons, redstone wire and crops are folded into their collectable items (sign, torch, cauldron, redstone dust, seeds and so on), while facing or waterlogged variants are merged.
+- Water and lava count only at the **source** (the state that can be bucketed); bubble columns, fire, soul fire, piston heads, nether portals, barrier-like blocks and other blocks **without an item form** are filtered out. Hover a row to see its region, block and filtered counts.
+- The result matches Litematica's Chinese material list exactly: for the same structure both the schematic and the CSV report **51 kinds / 17 091 items** with identical per-item counts.
+- Schematic material names follow the **current interface language** (简体中文 / 繁體中文 / English): switching the language re-counts imported schematics immediately, no re-import needed.
 - Each list gets a row on the left: the checkbox decides whether it takes part, the row shows that list's kinds · items, and `✕` removes it. Unticking recalculates immediately.
-- Lists are merged by **material name** with counts summed; names are kept exactly as imported.
-- Header detection is unchanged: name/count columns are read from the header (Litematica's `Item, Total, Missing, Available` uses **Total**), otherwise `name count` lines are parsed.
+- Lists are merged by **material name** with counts summed: schematic names match Litematica's CSV export in the same language, so the same material from both kinds of source adds up correctly.
+- Header detection: name/count columns are read from the header (Litematica's `Item, Total, Missing, Available` uses **Total**), otherwise `name count` lines are parsed.
 - The pending list, result, loading plan and export use only the **ticked** lists; stack overrides and the ignore list apply globally by material name.
 - Appending lists keeps your stack overrides and ignore list, but clears the material selection and export file name.
 
