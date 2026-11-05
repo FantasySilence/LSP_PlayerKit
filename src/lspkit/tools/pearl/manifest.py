@@ -19,7 +19,7 @@ MANIFEST = ToolManifest(
     description_key="pearl.description",
     icon="pearl",
     order=10,
-    version="1.1.3",
+    version="1.1.4",
     schema=SCHEMA,
     actions=[
         {"id": "calculate", "labelKey": "pearl.action.calculate"},
