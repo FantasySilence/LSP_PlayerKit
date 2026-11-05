@@ -436,3 +436,32 @@ def test_file_open_texts_reads_multiple(api, tmp_path):
     single = api.file_open_text()
     assert single["data"]["name"] == "a.csv"
     assert window.kwargs["allow_multiple"] is False
+
+
+def test_material_packing_merges_consecutive_full_boxes(api):
+    result = api.tool_call("material", "pack", {"text": "minecraft:stone 5184"})
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    assert data["totals"]["boxes"] == 3
+    groups = data["groups"]
+    assert len(groups) == 1
+    assert groups[0]["merged"] is True
+    assert (groups[0]["from"], groups[0]["to"], groups[0]["boxes"]) == (1, 3, 3)
+    assert groups[0]["used"] == 81
+
+    entry = groups[0]["entries"][0]
+    assert entry["name"] == "minecraft:stone"
+    assert entry["slots"] == 81
+    assert entry["count"] == 5184
+
+
+def test_material_packing_keeps_mixed_and_partial_boxes(api):
+    text = "minecraft:stone 1728\nminecraft:dirt 1"
+    result = api.tool_call("material", "pack", {"text": text})
+    assert result["ok"] is True, result
+
+    groups = result["data"]["groups"]
+    assert [group["merged"] for group in groups] == [False, False]
+    assert [group["from"] for group in groups] == [1, 2]
+    assert groups[1]["used"] < groups[1]["capacity"]

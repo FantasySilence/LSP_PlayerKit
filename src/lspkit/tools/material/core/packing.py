@@ -43,6 +43,69 @@ def _put(box: dict, unit: dict, stacks: int, items: int) -> None:
     )
 
 
+def _group_boxes(boxes: list[dict]) -> list[dict]:
+    """
+    把「连续且满装、只放单一材料」的盒子合并成一组，便于界面节省空间.
+    """
+
+    groups: list[dict] = []
+    run: list[dict] = []
+
+    def flush() -> None:
+        if not run:
+            return
+        first = run[0]
+        entry = first["entries"][0]
+        merged = {
+            "name": entry["name"],
+            "stack": entry["stack"],
+            "stacks": sum(box["entries"][0]["stacks"] for box in run),
+            "items": sum(box["entries"][0]["items"] for box in run),
+            "slots": sum(box["entries"][0]["slots"] for box in run),
+            "count": sum(box["entries"][0]["count"] for box in run),
+        }
+        groups.append(
+            {
+                "from": first["index"],
+                "to": run[-1]["index"],
+                "boxes": len(run),
+                "capacity": first["capacity"],
+                "used": sum(box["used"] for box in run),
+                "entries": [merged],
+                "merged": len(run) > 1,
+            }
+        )
+        run.clear()
+
+    for box in boxes:
+        entries = box["entries"]
+        pure = len(entries) == 1 and box["used"] >= box["capacity"]
+        if pure:
+            if run and (
+                run[0]["entries"][0]["name"] != entries[0]["name"]
+                or run[0]["entries"][0]["stack"] != entries[0]["stack"]
+            ):
+                flush()
+            run.append(box)
+            continue
+
+        flush()
+        groups.append(
+            {
+                "from": box["index"],
+                "to": box["index"],
+                "boxes": 1,
+                "capacity": box["capacity"],
+                "used": box["used"],
+                "entries": entries,
+                "merged": False,
+            }
+        )
+
+    flush()
+    return groups
+
+
 def plan(
     entries: list[dict],
     stack_size: int,
@@ -110,6 +173,7 @@ def plan(
     total_slots = sum(unit["slots"] for unit in units)
     return {
         "boxes": boxes,
+        "groups": _group_boxes(boxes),
         "totals": {
             "boxes": len(boxes),
             "slots": total_slots,

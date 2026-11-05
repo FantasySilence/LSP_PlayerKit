@@ -1,18 +1,87 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { invoke } from '../../platform/bridge'
 import { t } from '../../platform/i18n'
 import { notify, notifyError } from '../../platform/toast'
-import type { PackingEntry, PackingResult } from '../../platform/types'
+import type { PackingEntry, PackingGroup, PackingResult } from '../../platform/types'
 import PackEntry from './PackEntry.vue'
 
 const props = defineProps<{ result: PackingResult }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
-const listMode = ref(props.result.boxes.length > 12)
+const groups = computed<PackingGroup[]>(() => {
+  if (props.result.groups?.length) return props.result.groups
+  return props.result.boxes.map((box) => ({
+    from: box.index,
+    to: box.index,
+    boxes: 1,
+    capacity: box.capacity,
+    used: box.used,
+    entries: box.entries,
+    merged: false,
+  }))
+})
+
+const listMode = ref(groups.value.length > 12)
 const active = ref(0)
-const current = computed(() => props.result.boxes[active.value] ?? props.result.boxes[0])
+const current = computed(() => groups.value[active.value] ?? groups.value[0])
+
+// ------ 拼图式排布：细网格 + 按实测高度跨行 ------ #
+const grid = ref<HTMLElement | null>(null)
+const ROW_UNIT = 4
+let frame = 0
+let lastWidth = 0
+
+function layoutCards(): void {
+  const element = grid.value
+  if (!element || listMode.value) return
+
+  const styles = window.getComputedStyle(element)
+  const gap = Number.parseFloat(styles.rowGap || styles.gap || "10") || 10
+
+  element.querySelectorAll<HTMLElement>(".box-card").forEach((card) => {
+    card.style.gridRowEnd = "auto"
+    const height = card.getBoundingClientRect().height
+    const span = Math.max(1, Math.ceil((height + gap) / (ROW_UNIT + gap)))
+    card.style.gridRowEnd = `span ${span}`
+  })
+
+  lastWidth = element.clientWidth
+}
+
+function scheduleLayout(): void {
+  window.cancelAnimationFrame(frame)
+  frame = window.requestAnimationFrame(() => {
+    frame = 0
+    layoutCards()
+  })
+}
+
+function onResize(): void {
+  const element = grid.value
+  if (!element || element.clientWidth === lastWidth) return
+  scheduleLayout()
+}
+
+watch(listMode, () => nextTick(scheduleLayout))
+watch(() => props.result, () => nextTick(scheduleLayout))
+
+function groupLabel(group: PackingGroup): string {
+  return group.merged
+    ? t('material.pack.boxRange', { from: group.from, to: group.to })
+    : t('material.pack.box', { n: group.from })
+}
+
+function groupMeta(group: PackingGroup): string {
+  return group.merged
+    ? `${group.boxes} × ${group.capacity}/${group.capacity}`
+    : `${group.used}/${group.capacity}`
+}
+
+function groupSlots(group: PackingGroup): number {
+  return group.capacity * group.boxes
+}
 
 function entryText(entry: PackingEntry): string {
   if (entry.stacks && entry.items) {
@@ -35,12 +104,10 @@ function planText(): string {
       capacity: totals.capacity,
     }),
   ]
-  for (const box of props.result.boxes) {
+  for (const group of groups.value) {
     lines.push('')
-    lines.push(
-      `${t('material.pack.box', { n: box.index })} (${box.used}/${box.capacity})`,
-    )
-    for (const entry of box.entries) {
+    lines.push(`${groupLabel(group)} (${groupMeta(group)})`)
+    for (const entry of group.entries) {
       lines.push(
         `  - ${entry.name}: ${entryText(entry)} (${t('material.pack.slots', { n: entry.slots })})`,
       )
@@ -75,8 +142,17 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('resize', onResize)
+  nextTick(() => scheduleLayout())
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', onResize)
+  window.cancelAnimationFrame(frame)
+})
 </script>
 
 <template>
@@ -108,27 +184,30 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
       <div class="packing-hint">{{ t('material.pack.hint') }}</div>
 
-      <div v-if="!listMode" class="packing-grid">
+      <div v-if="!listMode" ref="grid" class="packing-grid">
         <article
-          v-for="box in result.boxes"
-          :key="box.index"
+          v-for="group in groups"
+          :key="`${group.from}-${group.to}`"
           class="box-card"
-          :class="{ full: box.used >= box.capacity }"
+          :class="{ full: group.used >= groupSlots(group), merged: group.merged }"
         >
           <div class="box-head">
-            <span class="box-no">{{ t('material.pack.box', { n: box.index }) }}</span>
+            <span class="box-no">{{ groupLabel(group) }}</span>
             <span class="box-meta">
-              <span class="mono">{{ box.used }}/{{ box.capacity }}</span>
-              <span class="box-kinds">· {{ box.entries.length }} {{ t('material.unit.kinds') }}</span>
+              <span class="mono">{{ groupMeta(group) }}</span>
+              <span class="box-kinds">· {{ group.entries.length }} {{ t('material.unit.kinds') }}</span>
             </span>
           </div>
           <div class="box-bar">
-            <span :style="{ width: percent(box.used, box.capacity) }" />
+            <span :style="{ width: percent(group.used, groupSlots(group)) }" />
           </div>
           <div class="box-list">
-            <PackEntry v-for="entry in box.entries" :key="entry.name" :entry="entry" />
+            <PackEntry v-for="entry in group.entries" :key="entry.name" :entry="entry" />
           </div>
-          <div v-if="box.entries.length > 7" class="box-more">
+          <div v-if="group.merged" class="box-merge-tag">
+            {{ t('material.pack.mergedTag', { n: group.boxes }) }}
+          </div>
+          <div v-else-if="group.entries.length > 7" class="box-more">
             <span>▾</span>
             <span>{{ t('material.pack.scrollHint') }}</span>
           </div>
@@ -138,21 +217,21 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <div v-else class="packing-split">
         <div class="box-index">
           <button
-            v-for="(box, index) in result.boxes"
-            :key="box.index"
+            v-for="(group, index) in groups"
+            :key="`${group.from}-${group.to}`"
             class="box-index-item"
-            :class="{ active: index === active }"
+            :class="{ active: index === active, merged: group.merged }"
             @click="active = index"
           >
-            <span class="box-index-no">{{ t('material.pack.box', { n: box.index }) }}</span>
-            <span class="box-index-meta mono">{{ box.used }}/{{ box.capacity }}</span>
+            <span class="box-index-no">{{ groupLabel(group) }}</span>
+            <span class="box-index-meta mono">{{ groupMeta(group) }}</span>
           </button>
         </div>
         <div class="box-detail">
           <div class="detail-head">
-            <span class="box-no">{{ t('material.pack.box', { n: current.index }) }}</span>
+            <span class="box-no">{{ groupLabel(current) }}</span>
             <span class="box-meta">
-              <span class="mono">{{ current.used }}/{{ current.capacity }}</span>
+              <span class="mono">{{ groupMeta(current) }}</span>
               <span class="box-kinds">· {{ current.entries.length }} {{ t('material.unit.kinds') }}</span>
             </span>
           </div>
@@ -232,8 +311,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   overflow: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-auto-rows: 4px;
   align-items: start;
-  gap: 10px;
+  align-content: start;
+  row-gap: 10px;
+  column-gap: 10px;
   padding: 0 18px 14px;
 }
 
@@ -285,6 +367,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .box-card:not(.full) .box-bar span {
   background: var(--accent);
+}
+
+.box-card.merged {
+  border-color: var(--brand-dim);
+}
+
+.box-merge-tag {
+  margin: 0 10px 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 10px;
+  text-align: center;
 }
 
 .box-meta {

@@ -143,8 +143,19 @@ export interface PackingBox {
   entries: PackingEntry[]
 }
 
+export interface PackingGroup {
+  from: number
+  to: number
+  boxes: number
+  capacity: number
+  used: number
+  entries: PackingEntry[]
+  merged: boolean
+}
+
 export interface PackingResult {
   boxes: PackingBox[]
+  groups?: PackingGroup[]
   totals: { boxes: number; slots: number; capacity: number; kinds: number }
   ignoredItems: MaterialIgnored[]
   warnings: { line: number; text: string }[]
