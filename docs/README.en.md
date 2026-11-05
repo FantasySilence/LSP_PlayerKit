@@ -141,12 +141,14 @@ Converts a Litematica material list into **shulker boxes / stacks / items** and 
 
 ![Material converter](../README_img/en/7-material.png)
 
-### 4.1 Import a material list
+### 4.1 Import material lists
 
-- Click **Import material list** and pick the CSV exported by Litematica. **GBK and UTF-8** are both supported.
-- Headered CSV is preferred: the **name** and **count** columns are detected by header, and Litematica's `Item, Total, Missing, Available` uses the **Total** column. Files without a header fall back to `name count` lines.
-- After import, the left column lists each material's **name and count** and converts immediately. Names are kept exactly as imported.
-- Re-importing clears the current stack overrides, ignore list and search.
+- Click **Import material list** to pick **several** CSVs at once (click again to append). **GBK and UTF-8** are both supported.
+- Each list gets a row on the left: the checkbox decides whether it takes part, the row shows that list's kinds · items, and `✕` removes it. Unticking recalculates immediately.
+- Lists are merged by **material name** with counts summed; names are kept exactly as imported.
+- Header detection is unchanged: name/count columns are read from the header (Litematica's `Item, Total, Missing, Available` uses **Total**), otherwise `name count` lines are parsed.
+- The pending list, result, loading plan and export use only the **ticked** lists; stack overrides and the ignore list apply globally by material name.
+- Appending lists keeps your stack overrides and ignore list, but clears the material selection and export file name.
 
 ### 4.2 Search and sorting
 
@@ -191,7 +193,7 @@ Columns: **Material / Stack / Count / Shulkers / Stacks / Items**.
 
 Two export settings at the bottom of the left column:
 
-- **Export name**: empty means `<imported file name>_converted.csv`.
+- **Export name**: empty means `<imported file name>_converted.csv`; with several lists ticked it falls back to `merged_converted.csv`.
 - **Export folder**: empty means `<data folder>/output` (by default `<exe folder>/data/output`). Use **Choose…** to pick another folder; the choice is saved.
 
 The export follows the current **filter and sort**, is UTF-8 with BOM, and opens correctly in Excel.
