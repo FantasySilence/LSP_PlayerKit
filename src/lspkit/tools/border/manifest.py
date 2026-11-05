@@ -19,7 +19,7 @@ MANIFEST = ToolManifest(
     description_key="border.description",
     icon="border",
     order=20,
-    version="1.1.2",
+    version="1.1.3",
     schema=SCHEMA,
     actions=[
         {"id": "calculate", "labelKey": "border.action.calculate"},

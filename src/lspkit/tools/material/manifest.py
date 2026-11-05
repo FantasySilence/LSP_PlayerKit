@@ -19,7 +19,7 @@ MANIFEST = ToolManifest(
     description_key="material.description",
     icon="box",
     order=30,
-    version="1.1.2",
+    version="1.1.3",
     schema=SCHEMA,
     actions=[
         {"id": "convert", "labelKey": "material.action.convert"},
