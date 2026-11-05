@@ -184,7 +184,9 @@ Columns: **Material / Stack / Count / Shulkers / Stacks / Items**.
 
 - Each material is first converted to **slots**: `full stacks + (remainder ? 1 : 0)`, with 27 slots per box.
 - Boxes are filled largest-first until full, so the box count equals `ceil(total slots / 27)`, the theoretical minimum.
+- When one material fills several boxes in a row, those boxes are **merged into a single card** (titled like `Boxes 1–2` with a “N boxes merged” tag) so long plans stay compact; mixed or partly filled boxes are still shown one by one.
 - The dialog has two views: **Cards** (one card per box, ≤ 12 boxes by default) and **List** (box index on the left, details on the right, used automatically for larger plans). Switch any time from the title bar; both have their own scrollbars.
+- Card height depends on how many material kinds a box holds, so cards are laid out **masonry-style**: each card spans exactly its measured height, leaving no empty row under short cards.
 - Each box lists “material · stacks/items · slots”, and **Copy plan** exports the whole plan as text.
 
 ![Loading plan](../README_img/en/8-pack.png)
