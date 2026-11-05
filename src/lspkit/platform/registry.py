@@ -79,6 +79,26 @@ class Context:
         self._runtime.store.save(tool_id, validated)
         return validated
 
+    # ------ 工具自有的变长数据（站点、台账等） ------ #
+    def doc_load(self, tool_id: str, name: str, default: dict | None = None) -> dict:
+        """
+        读取工具自有的 JSON 文档（与设置分文件存放，同样享受原子写与备份）.
+        """
+
+        self._registry.get(tool_id)
+        data = self._runtime.store.load(f"{tool_id}_{name}", default or {})
+        return data if isinstance(data, dict) else dict(default or {})
+
+    def doc_save(self, tool_id: str, name: str, data: dict) -> dict:
+        """
+        写入工具自有的 JSON 文档.
+        """
+
+        self._registry.get(tool_id)
+        if not isinstance(data, dict):
+            raise AppError("INVALID_DATA", "文档内容必须是对象")
+        return self._runtime.store.save(f"{tool_id}_{name}", data)
+
 
 class Registry:
     def __init__(self) -> None:
