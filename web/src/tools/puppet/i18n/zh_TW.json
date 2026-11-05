@@ -16,6 +16,7 @@
   "puppet.op.spawn_at_origin": "生成於始發地",
   "puppet.op.spawn_at_dest": "生成於目的地",
   "puppet.field.search": "搜尋站點",
+  "puppet.filter.all": "全部",
 
   "puppet.action.addStation": "新增",
   "puppet.action.import": "匯入",
@@ -111,6 +112,7 @@
   "puppet.history.clickHint": "點擊列恢復指令",
 
   "puppet.empty.stations": "還沒有站點，點「新增站點」或「匯入」",
+  "puppet.empty.filtered": "該分組下沒有站點",
   "puppet.empty.commands": "填好訂單後點「產生指令」",
   "puppet.empty.history": "還沒有運單記錄",
 

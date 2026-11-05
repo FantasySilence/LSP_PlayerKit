@@ -16,6 +16,7 @@
   "puppet.op.spawn_at_origin": "生成于始发地",
   "puppet.op.spawn_at_dest": "生成于目的地",
   "puppet.field.search": "搜索站点",
+  "puppet.filter.all": "全部",
 
   "puppet.action.addStation": "新增",
   "puppet.action.import": "导入",
@@ -111,6 +112,7 @@
   "puppet.history.clickHint": "点击行恢复命令",
 
   "puppet.empty.stations": "还没有站点，点「新增站点」或「导入」",
+  "puppet.empty.filtered": "该分组下没有站点",
   "puppet.empty.commands": "填好订单后点「生成命令」",
   "puppet.empty.history": "还没有运单记录",
 

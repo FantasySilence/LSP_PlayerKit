@@ -16,6 +16,7 @@
   "puppet.op.spawn_at_origin": "Spawn at origin",
   "puppet.op.spawn_at_dest": "Spawn at destination",
   "puppet.field.search": "Search stations",
+  "puppet.filter.all": "All",
 
   "puppet.action.addStation": "Add",
   "puppet.action.import": "Import",
@@ -111,6 +112,7 @@
   "puppet.history.clickHint": "Click a row to restore its commands",
 
   "puppet.empty.stations": "No stations yet — add one or import",
+  "puppet.empty.filtered": "No stations in this group",
   "puppet.empty.commands": "Fill the shipment form, then generate",
   "puppet.empty.history": "No shipments yet",
 

@@ -35,6 +35,7 @@ const plan = ref<Plan | null>(null)
 const phase = ref<'spawn' | 'kill'>('spawn')
 const busy = ref(false)
 const search = ref('')
+const stationGroupFilter = ref('*')
 const allowExecute = ref(false)
 
 const stationDialogOpen = ref(false)
@@ -60,12 +61,33 @@ const diagChecks = ref<DiagnoseCheck[]>([])
 
 const filteredStations = computed(() => {
   const keyword = search.value.trim().toLowerCase()
-  if (!keyword) return stations.value
-  return stations.value.filter(
-    (station) =>
+  const group = stationGroupFilter.value
+  return stations.value.filter((station) => {
+    if (group !== '*' && (station.group ?? '') !== group) return false
+    if (!keyword) return true
+    return (
       station.name.toLowerCase().includes(keyword) ||
-      station.prefix.toLowerCase().includes(keyword),
-  )
+      station.prefix.toLowerCase().includes(keyword)
+    )
+  })
+})
+
+const stationGroups = computed(() => {
+  const result: string[] = []
+  for (const station of stations.value) {
+    const group = station.group ?? ''
+    if (!result.includes(group)) result.push(group)
+  }
+  return result
+})
+
+watch(stations, () => {
+  if (
+    stationGroupFilter.value !== '*' &&
+    !stationGroups.value.includes(stationGroupFilter.value)
+  ) {
+    stationGroupFilter.value = '*'
+  }
 })
 
 const activeCommands = computed<PlanCommand[]>(() => {
@@ -572,8 +594,31 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="panel-body stations-body">
+          <div class="station-filter">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ active: stationGroupFilter === '*' }"
+              @click="stationGroupFilter = '*'"
+            >
+              {{ t('puppet.filter.all') }}
+            </button>
+            <button
+              v-for="group in stationGroups"
+              :key="group || '-none-'"
+              type="button"
+              class="filter-chip"
+              :class="{ active: stationGroupFilter === group }"
+              @click="stationGroupFilter = group"
+            >
+              {{ group || t('puppet.station.noGroup') }}
+            </button>
+          </div>
           <input v-model="search" class="input search" :placeholder="t('puppet.field.search')" />
           <div v-if="!stations.length" class="empty">{{ t('puppet.empty.stations') }}</div>
+          <div v-else-if="!filteredStations.length" class="empty">
+            {{ t('puppet.empty.filtered') }}
+          </div>
           <div v-else class="station-list">
             <div
               v-for="station in filteredStations"
@@ -932,6 +977,32 @@ onUnmounted(() => {
 .search {
   height: 30px;
   font-size: 12px;
+}
+
+.station-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.filter-chip {
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.filter-chip:hover {
+  color: var(--text);
+}
+
+.filter-chip.active {
+  border-color: var(--brand-dim);
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .station-list {
