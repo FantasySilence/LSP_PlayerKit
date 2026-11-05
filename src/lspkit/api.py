@@ -30,6 +30,7 @@ APP_DEFAULTS = {
 }
 
 MAX_TEXT_FILE_BYTES = 5 * 1024 * 1024
+MAX_LITEMATIC_BYTES = 64 * 1024 * 1024
 
 
 class Api:
@@ -163,6 +164,9 @@ class Api:
     def file_open_texts(self) -> dict:
         return envelope(self._open_texts)
 
+    def file_open_material_lists(self, locale: str = "zh_cn") -> dict:
+        return envelope(self._open_material_lists, locale)
+
     def _open_text(self) -> dict:
         import webview
 
@@ -179,14 +183,57 @@ class Api:
             return {"cancelled": True}
         return {"files": [self._read_text_file(Path(path)) for path in paths]}
 
-    def _pick_files(self, webview, allow_multiple: bool) -> tuple:
+    def _open_material_lists(self, locale: str = "zh_cn") -> dict:
+        import webview
+
+        paths = self._pick_files(
+            webview,
+            allow_multiple=True,
+            file_types=(
+                "材料清单或投影 (*.csv;*.txt;*.tsv;*.litematic)",
+                "材料清单 (*.csv;*.txt;*.tsv)",
+                "投影 (*.litematic)",
+                "所有文件 (*.*)",
+            ),
+        )
+        if not paths:
+            return {"cancelled": True}
+
+        files = []
+        for raw_path in paths:
+            path = Path(raw_path)
+            if path.suffix.lower() == ".litematic":
+                files.append(self._read_litematic(path, locale))
+            else:
+                files.append(self._read_text_file(path))
+        return {"files": files}
+
+    def _read_litematic(self, path: Path, locale: str = "zh_cn") -> dict:
+        from lspkit.tools.material.core.litematic import LitematicError, parse_litematic
+
+        raw = self._read_bytes(path, MAX_LITEMATIC_BYTES)
+        try:
+            parsed = parse_litematic(raw, locale)
+        except LitematicError as exc:
+            raise AppError("INVALID_LITEMATIC", str(exc), path.name) from exc
+        return {
+            "kind": "litematic",
+            "path": str(path),
+            "name": path.name,
+            "entries": parsed["entries"],
+            "meta": parsed["meta"],
+            "warnings": parsed["warnings"],
+        }
+
+    def _pick_files(self, webview, allow_multiple: bool, file_types: tuple | None = None) -> tuple:
         window = self._rt.window
         if window is None:
             raise AppError("NO_WINDOW", "窗口尚未就绪")
         result = window.create_file_dialog(
             webview.FileDialog.OPEN,
             allow_multiple=allow_multiple,
-            file_types=("文本与表格 (*.txt;*.csv;*.tsv;*.log)", "所有文件 (*.*)"),
+            file_types=file_types
+            or ("文本与表格 (*.txt;*.csv;*.tsv;*.log)", "所有文件 (*.*)"),
         )
         if not result:
             return ()
@@ -194,20 +241,25 @@ class Api:
             return tuple(result)
         return (result,)
 
-    def _read_text_file(self, path: Path) -> dict:
+    def _read_bytes(self, path: Path, limit: int) -> bytes:
         try:
             size = path.stat().st_size
         except OSError as exc:
             raise AppError("INVALID_FILE", "无法读取该文件", str(exc)) from exc
-        if size > MAX_TEXT_FILE_BYTES:
+        if size > limit:
             raise AppError(
-                "FILE_TOO_LARGE", "文件太大，请只保留材料清单部分", f"{size} 字节"
+                "FILE_TOO_LARGE",
+                "文件太大，请拆分后再导入",
+                f"{size} 字节（上限 {limit}）",
             )
         try:
-            raw = path.read_bytes()
+            return path.read_bytes()
         except OSError as exc:
             raise AppError("INVALID_FILE", "无法读取该文件", str(exc)) from exc
-        return {"path": str(path), "name": path.name, "text": _decode_text(raw)}
+
+    def _read_text_file(self, path: Path) -> dict:
+        raw = self._read_bytes(path, MAX_TEXT_FILE_BYTES)
+        return {"kind": "text", "path": str(path), "name": path.name, "text": _decode_text(raw)}
 
     def file_save_text(self, filename: str, content: str, directory: str = "") -> dict:
         return envelope(self._save_text, filename, content, directory)

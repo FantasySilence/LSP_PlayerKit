@@ -94,9 +94,13 @@ def _read(payload: dict, ctx) -> tuple[dict, dict]:
     校验请求、解析清单并取回本工具设置.
     """
 
-    raw_sources = payload.get("texts")
+    raw_sources = payload.get("sources")
+    if raw_sources is None:
+        raw_sources = payload.get("texts")
+    locale = payload.get("locale")
+    locale = locale if isinstance(locale, str) else "zh_cn"
     if raw_sources is not None:
-        parsed = parse_sources(_normalize_sources(raw_sources))
+        parsed = parse_sources(_normalize_sources(raw_sources), locale)
     else:
         parsed = parse_materials(_normalize_text(payload.get("text")))
 
@@ -136,6 +140,15 @@ def _normalize_sources(raw) -> list[dict]:
     for item in raw:
         if not isinstance(item, dict):
             raise AppError("INVALID_INPUT", "材料清单格式错误")
+
+        name = str(item.get("name") or "清单")
+        entries = item.get("entries")
+        if entries is not None:
+            if not isinstance(entries, list) or not entries:
+                continue
+            sources.append({"name": name, "entries": entries})
+            continue
+
         text = item.get("text")
         if not isinstance(text, str) or not text.strip():
             continue
@@ -144,7 +157,7 @@ def _normalize_sources(raw) -> list[dict]:
             raise AppError(
                 "INPUT_TOO_LARGE", "材料清单太长，请分批换算", f"{total} 字符"
             )
-        sources.append({"name": str(item.get("name") or "清单"), "text": text})
+        sources.append({"name": name, "text": text})
 
     if not sources:
         raise AppError("INVALID_INPUT", "请先导入材料清单")

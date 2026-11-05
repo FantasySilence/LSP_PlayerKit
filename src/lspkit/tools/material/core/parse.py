@@ -13,6 +13,7 @@ import csv
 import re
 
 from ..constants import MAX_KINDS, MAX_WARNINGS, NAME_TRIM, TRAILING_COUNT
+from .localize import item_name
 
 _TRAILING = re.compile(TRAILING_COUNT, re.IGNORECASE)
 _SEPARATOR = re.compile(r"[,._\s]")
@@ -119,7 +120,56 @@ def parse_materials(text: str) -> dict:
     }
 
 
-def parse_sources(sources: list[dict]) -> dict:
+def parse_entries(raw: list, locale: str = "zh_cn") -> dict:
+    """
+    校验并整理已经解析好的条目（如 .litematic 统计结果）.
+
+    带 id 的条目按当前语言重新取名，保证切换语言后材料名跟着变。
+    """
+
+    entries: dict[str, dict] = {}
+    skipped = 0
+    truncated = False
+
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            skipped += 1
+            continue
+
+        item_id = item.get("id")
+        if isinstance(item_id, str) and item_id.strip():
+            name = item_name(item_id.strip(), locale)
+        else:
+            name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            skipped += 1
+            continue
+        try:
+            count = int(item.get("count"))
+        except (TypeError, ValueError):
+            skipped += 1
+            continue
+        if count <= 0:
+            skipped += 1
+            continue
+
+        key = name.strip()
+        if key in entries:
+            entries[key]["count"] += count
+        elif len(entries) >= MAX_KINDS:
+            truncated = True
+        else:
+            entries[key] = {"name": key, "count": count}
+
+    return {
+        "entries": list(entries.values()),
+        "warnings": [],
+        "skipped": skipped,
+        "truncated": truncated,
+    }
+
+
+def parse_sources(sources: list[dict], locale: str = "zh_cn") -> dict:
     """
     解析多份材料清单，跨清单的同名材料按数量求和.
     """
@@ -132,7 +182,10 @@ def parse_sources(sources: list[dict]) -> dict:
 
     for source in sources:
         name = str(source.get("name") or "清单")
-        parsed = parse_materials(source.get("text") or "")
+        if source.get("entries") is not None:
+            parsed = parse_entries(source.get("entries"), locale)
+        else:
+            parsed = parse_materials(source.get("text") or "")
 
         kinds = 0
         items = 0

@@ -465,3 +465,55 @@ def test_material_packing_keeps_mixed_and_partial_boxes(api):
     assert [group["merged"] for group in groups] == [False, False]
     assert [group["from"] for group in groups] == [1, 2]
     assert groups[1]["used"] < groups[1]["capacity"]
+
+def test_material_accepts_preparsed_sources(api):
+    result = api.tool_call(
+        "material",
+        "convert",
+        {
+            "sources": [
+                {
+                    "name": "a.litematic",
+                    "entries": [
+                        {"name": "石头", "count": 10},
+                        {"name": "泥土", "count": 5},
+                    ],
+                },
+                {"name": "b.csv", "text": "石头 3"},
+            ]
+        },
+    )
+    assert result["ok"] is True, result
+    data = result["data"]
+
+    counts = {row["name"]: row["count"] for row in data["items"]}
+    assert counts == {"石头": 13, "泥土": 5}
+    assert data["sources"] == [
+        {"name": "a.litematic", "kinds": 2, "items": 15},
+        {"name": "b.csv", "kinds": 1, "items": 3},
+    ]
+
+
+def test_material_rejects_sources_without_entries(api):
+    result = api.tool_call(
+        "material", "convert", {"sources": [{"name": "x", "entries": []}]}
+    )
+    assert result["ok"] is False
+    assert result["error"]["code"] == "INVALID_INPUT"
+
+def test_material_localizes_preparsed_entries(api):
+    result = api.tool_call(
+        "material",
+        "convert",
+        {
+            "sources": [
+                {
+                    "name": "x.litematic",
+                    "entries": [{"id": "minecraft:stone", "name": "ignored", "count": 4}],
+                }
+            ],
+            "locale": "en",
+        },
+    )
+    assert result["ok"] is True, result
+    assert [row["name"] for row in result["data"]["items"]] == ["Stone"]

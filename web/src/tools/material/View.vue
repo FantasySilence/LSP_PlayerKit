@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
-import { t } from '../../platform/i18n'
+import { locale, t } from '../../platform/i18n'
 import { clone, getSettings, loadSettings, revision, saveSettings } from '../../platform/settings'
 import { notify, notifyError } from '../../platform/toast'
 import type {
@@ -19,10 +19,28 @@ const props = defineProps<{ tool: ToolDef }>()
 
 const STACK_OPTIONS = ['64', '16', '1']
 
+interface SourceEntry {
+  id?: string
+  name: string
+  count: number
+}
+
+interface SourceMeta {
+  regions?: number
+  blocks?: number
+  items?: number
+  filtered?: number
+  volume?: number
+  kinds?: number
+  layout?: string
+}
+
 interface SourceFile {
   id: string
   name: string
-  text: string
+  text?: string
+  entries?: SourceEntry[]
+  meta?: SourceMeta
   enabled: boolean
 }
 
@@ -200,7 +218,12 @@ async function convert() {
   busy.value = true
   try {
     const result = await callTool<MaterialResult>(props.tool.id, 'convert', {
-      texts: active.map((source) => ({ name: source.name, text: source.text })),
+      sources: active.map((source) =>
+        source.entries
+          ? { name: source.name, entries: source.entries }
+          : { name: source.name, text: source.text ?? '' },
+      ),
+      locale: locale.value,
       stacks: stacks.value,
       ignore: [...ignored.value],
     })
@@ -224,6 +247,11 @@ async function convert() {
   }
 }
 
+watch(locale, async () => {
+  if (!sources.value.some((source) => source.entries?.some((entry) => entry.id))) return
+  if (activeSources.value.length) await convert()
+})
+
 function clearResult() {
   items.value = []
   totals.value = null
@@ -244,7 +272,12 @@ async function pack() {
   packingBusy.value = true
   try {
     const result = await callTool<PackingResult>(props.tool.id, 'pack', {
-      texts: active.map((source) => ({ name: source.name, text: source.text })),
+      sources: active.map((source) =>
+        source.entries
+          ? { name: source.name, entries: source.entries }
+          : { name: source.name, text: source.text ?? '' },
+      ),
+      locale: locale.value,
       stacks: stacks.value,
       ignore: [...ignored.value],
     })
@@ -261,19 +294,27 @@ async function readFiles() {
   try {
     const result = await invoke<{
       cancelled?: boolean
-      files?: { name?: string; text?: string }[]
-    }>('file_open_texts')
+      files?: {
+        name?: string
+        text?: string
+        entries?: SourceEntry[]
+        meta?: SourceMeta
+      }[]
+    }>('file_open_material_lists', locale.value)
     if (result?.cancelled || !Array.isArray(result?.files)) return
 
     let added = 0
     for (const file of result.files) {
+      const entries = Array.isArray(file?.entries) ? file.entries : undefined
       const body = typeof file?.text === 'string' ? file.text : ''
-      if (!body.trim()) continue
+      if (!entries?.length && !body.trim()) continue
       sourceSeq += 1
       sources.value.push({
         id: `source-${sourceSeq}`,
         name: (file.name ?? '').trim() || t('material.sources.unnamed'),
-        text: body,
+        text: entries ? undefined : body,
+        entries: entries?.length ? entries : undefined,
+        meta: file.meta,
         enabled: true,
       })
       added += 1
@@ -289,6 +330,21 @@ async function readFiles() {
   } catch (error) {
     notifyError(error)
   }
+}
+
+function sourceTitle(source: SourceFile): string {
+  const meta = source.meta
+  if (!meta?.regions) return source.name
+  const lines = [
+    t('material.sources.meta', {
+      regions: meta.regions,
+      blocks: meta.blocks ?? 0,
+    }),
+  ]
+  if (meta.filtered) {
+    lines.push(t('material.sources.filtered', { n: meta.filtered }))
+  }
+  return `${source.name}\n${lines.join(' · ')}`
 }
 
 async function toggleSource(source: SourceFile) {
@@ -437,7 +493,7 @@ onMounted(async () => {
             :class="{ off: !source.enabled }"
           >
             <input type="checkbox" :checked="source.enabled" @change="toggleSource(source)" />
-            <span class="source-name" :title="source.name">{{ source.name }}</span>
+            <span class="source-name" :title="sourceTitle(source)">{{ source.name }}</span>
             <span v-if="sourceStats[source.name]" class="source-meta mono">
               {{ sourceStats[source.name].kinds }} · {{ sourceStats[source.name].items }}
             </span>
