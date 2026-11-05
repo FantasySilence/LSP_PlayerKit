@@ -59,7 +59,7 @@ The window has three parts:
 
 Shortcuts: `Ctrl+1 / Ctrl+2 / Ctrl+3` switch tools, `Ctrl+,` opens settings. Window size and the maximized state are remembered.
 
-![Main window](../README_img/1-main.png)
+![Main window](../README_img/en/1-main.png)
 
 ---
 
@@ -81,7 +81,7 @@ Results and actions:
 - **Simulate** steps the pearl tick by tick for the selected configuration and switches to the **Trace** tab: columns are **tick / X / Y / Z**, and the expected arrival tick is highlighted in orange and scrolled into view.
 - **Save as default** writes the current muzzle, target, max TNT and launch mode back to settings; **Fill from defaults** overwrites the inputs with the saved values.
 
-![Pearl cannon result and trace](../README_img/2-trace.png)
+![Pearl cannon result and trace](../README_img/en/2-trace.png)
 
 ### 2.2 Settings
 
@@ -120,7 +120,7 @@ Click **Calculate TNT**; the table lists three TNT charges and a direction per t
 
 **Save as default** and **Fill from defaults** work the same way as in the pearl cannon.
 
-![Border cannon result](../README_img/5-border.png)
+![Border cannon result](../README_img/en/5-border.png)
 
 ### 3.2 Settings
 
@@ -139,7 +139,7 @@ Click **Calculate TNT**; the table lists three TNT charges and a direction per t
 
 Converts a Litematica material list into **shulker boxes / stacks / items** and produces a loading plan.
 
-![Material converter](../README_img/7-material.png)
+![Material converter](../README_img/en/7-material.png)
 
 ### 4.1 Import a material list
 
@@ -185,7 +185,7 @@ Columns: **Material / Stack / Count / Shulkers / Stacks / Items**.
 - The dialog has two views: **Cards** (one card per box, ≤ 12 boxes by default) and **List** (box index on the left, details on the right, used automatically for larger plans). Switch any time from the title bar; both have their own scrollbars.
 - Each box lists “material · stacks/items · slots”, and **Copy plan** exports the whole plan as text.
 
-![Loading plan](../README_img/8-pack.png)
+![Loading plan](../README_img/en/8-pack.png)
 
 ### 4.7 Export CSV
 
@@ -221,9 +221,9 @@ Click the gear (or press `Ctrl+,`) to open the settings drawer. It has three tab
 
 The **About** tab shows the version, stack, privacy note and license, with shortcuts to the configuration docs and the GitHub repository.
 
-![Settings · Tool options](../README_img/3-settings.png)
+![Settings · Tool options](../README_img/en/3-settings.png)
 
-![About](../README_img/6-about.png)
+![About](../README_img/en/6-about.png)
 
 ---
 
@@ -258,7 +258,7 @@ Other behaviour:
 - **Export / import bundle** produces a zip with every tool and preference.
 - Window size and maximized state are stored in `app.json` and restored on the next launch.
 
-![Data & storage](../README_img/4-storage.png)
+![Data & storage](../README_img/en/4-storage.png)
 
 ---
 
