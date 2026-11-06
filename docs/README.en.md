@@ -85,7 +85,10 @@ Results and actions:
 - Columns: **Distance error / Flight time / Blue TNT / Red TNT / Total TNT**, sorted by **flight time ascending** by default. Click the **Distance error** or **Flight time** header to sort; click again to reverse.
 - Selecting a row shows the blue and red TNT array breakdown at the bottom, e.g. `20 + 10 + 2 + 1 = 33`; **Copy** puts it on the clipboard.
 - **Simulate** steps the pearl tick by tick for the selected configuration and switches to the **Trace** tab: columns are **tick / X / Y / Z**, and the expected arrival tick is highlighted in orange and scrolled into view.
+- **Manual simulation**: enter **blue / red TNT counts**, pick a direction on the compass and press **Simulate counts** — no target calculation needed. The trace jumps to the landing tick and reports the landing X / Z and horizontal distance (Flat lands at Y ≤ 0, Arc at Y ≤ 128). The trace list still starts at row 1 (0 gt); the landing row stays highlighted.
 - **Save as default** writes the current muzzle, target, max TNT and launch mode back to settings; **Fill from defaults** overwrites the inputs with the saved values.
+
+![Manual pearl simulation](../README_img/en/15-pearl-manual.png)
 
 ![Pearl cannon result and trace](../README_img/en/2-trace.png)
 
@@ -123,6 +126,10 @@ Click **Calculate TNT**; the table lists three TNT charges and a direction per t
 - **Predicted landing coordinates** (X / Z, three decimals)
 - **minor** (remaining TNT) and **major** (780-charge) breakdowns for each of the three TNT, e.g. `371 = 260 + 80 + 20 + 10 + 1`, `78 = 40 + 20 + 10 + 8`
 - three-axis momentum, plus one-click copy of the full decode text
+
+You can also skip the calculation: enter the three TNT charges, a direction and a **flight time** under **Manual landing forecast**, press **Forecast landing**, and the panel shows the landing point, the pearl position at that tick (X / Y / Z), momentum and configuration text right away. The eight directions match the ones the cannon geometry produces, so a forecast with the auto-detected direction agrees with the table.
+
+![Manual border landing forecast](../README_img/en/16-border-forecast.png)
 
 **Save as default** and **Fill from defaults** work the same way as in the pearl cannon.
 
@@ -249,6 +256,7 @@ Pick the origin, destination, number of boxes and the operation:
 - bot count = ⌈boxes / boxes-per-bot⌉, then split into batches;
 - “Spawn at origin” / “Spawn at destination” decides which station the spawn command targets; they are normally used as a pair: spawn at the origin and load, kill them, then spawn the same bots at the destination to unload;
 - results are split into Spawn and Kill tabs, with copy-all and `.txt` export (also usable as a `.mcfunction`). The **Clear commands** button next to Copy all empties the current preview.
+- the order (from / to / boxes / operation) is remembered in the data folder and restored the next time the app starts; deleted stations fall back to the default selection.
 
 ![Order and command preview](../README_img/en/9-puppet-overview.png)
 
@@ -278,13 +286,15 @@ Say A is the source warehouse (Overworld, `100 64 -200`, prefix `a`) and B is th
 4. **Unload**: operate the cargo station at B to unload; afterwards you can clear this batch from the Kill tab again.
 5. The ledger records every spawn/kill: route A → B, operation location A · Overworld (or B · The End), 600 boxes / 17 bots; clicking a row restores the commands.
 
-For 1000 boxes: `ceil(1000 / 36) = 28` bots, split into batches of 24 + 4; repeat steps 1 → 4 for each batch.
+For 1000 boxes: `ceil(1000 / 36) = 28` bots, split into batches of 24 + 4; repeat steps 1 → 4 for each batch. With auto input on, **Run** pauses at the end of every batch: the panel shows “Batch 1/2 done” and waits for you to finish that batch in-game (load / unload), then **Continue** sends the next batch so the bots do not all pile up at the station.
 
 ### 5.3 Running commands (optional)
 
 Execution is off by default. Enable **Settings → Run → Allow auto input** to type the commands into Minecraft:
 
 - Run opens a confirmation first, then counts down and brings the game window to the front;
+- with several batches it pauses after each one and waits for **Continue**; you can still stop while it waits;
+- the log under **Run** scrolls like a terminal and shows live progress (sent count, current command, per-command lines);
 - clipboard paste (`Ctrl+A`, `Ctrl+V`) with keys held for 0.12 s; before pressing Enter the runner probes whether the game stalled and retries the whole command if it did;
 - press `ESC` in-game to stop; afterwards “Build cleanup” kills any bots that may already exist, and the sent count is written to the ledger;
 - when every command has been sent, the runner sends one extra English chat message, `Operation completed successfully`, so you can tell the batch finished;
@@ -376,7 +386,8 @@ Settings live in `data` next to the executable by default. **Copy the whole fold
    │  ├─ material.json   material converter settings
    │  ├─ puppet.json     Puppet Logistics settings
    │  ├─ puppet_stations.json  Puppet Logistics stations
-   │  └─ puppet_orders.json    Puppet Logistics ledger
+   │  ├─ puppet_orders.json    Puppet Logistics ledger
+   │  └─ puppet_draft.json     last order (from / to / boxes / operation)
    ├─ output/            exported CSV files (default folder)
    ├─ backups/           snapshot before each save, last 5 kept
    └─ .lock              prevents two instances overwriting each other
