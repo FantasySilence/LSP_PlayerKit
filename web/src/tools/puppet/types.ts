@@ -73,6 +73,18 @@ export interface RunState {
   elapsed: number
   error: string
   meta: RunMeta
+  batchSize?: number
+  batch?: number
+  batches?: number
+  waiting?: boolean
+}
+
+export interface OrderDraft {
+  origin: string
+  dest: string
+  boxes: number
+  operation: 'spawn_at_origin' | 'spawn_at_dest'
+  savedAt?: string
 }
 
 export interface Order {

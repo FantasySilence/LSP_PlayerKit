@@ -172,11 +172,23 @@ class CommandRunner:
         transport: Transport | None = None,
         logger: Callable[[str], None] | None = None,
         on_progress: Callable[[int, int, str], None] | None = None,
+        batch_size: int = 0,
+        batch_gate: object | None = None,
+        on_wait: Callable[[bool, int, int], None] | None = None,
     ) -> None:
+        """
+        batch_size > 0 时每发完这么多条就停下，等 batch_gate 放行：
+        闸门只需提供 ``poll() -> bool``（返回 True 表示继续下一批）。
+        on_wait(waiting, batch, batches) 用于把「正在等确认」同步给界面。
+        """
+
         self.config = config or InputConfig()
         self._transport = transport
         self._logger = logger
         self._on_progress = on_progress
+        self._batch_size = max(int(batch_size or 0), 0)
+        self._batch_gate = batch_gate
+        self._on_wait = on_wait
         self._stop = False
         self._hwnd: Optional[int] = None
         self._lag_factor = 1.0
@@ -205,15 +217,22 @@ class CommandRunner:
             else:
                 self._log("dry-run：只记录将要输入的命令，不会真的按键")
 
+            total = len(prepared)
+            batches = (
+                math.ceil(total / float(self._batch_size)) if self._batch_size else 1
+            )
             for index, command in enumerate(prepared, 1):
                 if self._abort_requested():
                     raise _Aborted()
                 self._send_one(command)
                 report.sent += 1
                 report.last_index = index
-                self._log(f"[{index}/{len(prepared)}] {command}")
+                self._log(f"[{index}/{total}] {command}")
                 if self._on_progress:
-                    self._on_progress(index, len(prepared), command)
+                    self._on_progress(index, total, command)
+                if self._batch_size and index % self._batch_size == 0 and index < total:
+                    if not self._wait_batch(index // self._batch_size, batches):
+                        raise _Aborted()
 
             if self.config.final_message:
                 self._send_one(self.config.final_message)
@@ -266,6 +285,30 @@ class CommandRunner:
             raise RuntimeError(
                 "未能把 Minecraft 窗口切到前台，已中止；请确认游戏正在运行"
             )
+
+    # ------------------------------ 批间闸门 ------------------------------ #
+    def _wait_batch(self, batch: int, batches: int) -> bool:
+        """
+        一批发完后停在原地，等界面点「继续」；返回 False 表示被中断.
+
+        等待期间仍然轮询 ESC 与 stop()，所以暂停中也能中断。
+        """
+
+        if self._on_wait is not None:
+            self._on_wait(True, batch, batches)
+        self._log(f"第 {batch}/{batches} 批已完成，等待确认后继续下一批")
+        try:
+            while True:
+                if self._abort_requested():
+                    self._log("等待确认时收到中断")
+                    return False
+                if self._batch_gate is not None and self._batch_gate.poll():
+                    self._log(f"已确认，继续第 {batch + 1}/{batches} 批")
+                    return True
+                self._get_transport().sleep(0.1)
+        finally:
+            if self._on_wait is not None:
+                self._on_wait(False, batch, batches)
 
     # ------------------------------ 单条 ------------------------------ #
     def _send_one(self, command: str) -> None:

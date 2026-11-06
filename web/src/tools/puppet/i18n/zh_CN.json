@@ -70,6 +70,7 @@
 
   "puppet.run.state.idle": "就绪",
   "puppet.run.state.running": "执行中",
+  "puppet.run.state.waiting": "等待继续",
   "puppet.run.state.done": "已完成",
   "puppet.run.state.aborted": "已中断",
   "puppet.run.state.error": "出错",
@@ -85,6 +86,9 @@
   "puppet.run.cleanupHint": "有 {n} 个假人可能已经生成，建议补一条清理命令",
   "puppet.run.cleanupReady": "清理命令已生成，切到「清除」页执行",
   "puppet.run.empty": "还没有执行记录",
+  "puppet.run.waitBatch": "第 {batch}/{batches} 批已完成 · 已发送 {sent}/{total} 条",
+  "puppet.run.waitHint": "在游戏里处理完本批（装货 / 卸货）后再继续，避免假人挤在一起",
+  "puppet.action.continueBatch": "继续下一批",
 
   "puppet.diag.title": "环境诊断",
   "puppet.diag.ok": "正常",

@@ -9,7 +9,7 @@
 
 from lspkit.platform.registry import ToolManifest
 
-from .actions import calculate_action, decode_action
+from .actions import calculate_action, decode_action, forecast_action
 from .legacy import convert
 from .schema import SCHEMA
 
@@ -33,6 +33,10 @@ MANIFEST = ToolManifest(
     ],
 )
 
-HANDLERS = {"calculate": calculate_action, "decode": decode_action}
+HANDLERS = {
+    "calculate": calculate_action,
+    "decode": decode_action,
+    "forecast": forecast_action,
+}
 
 LEGACY = convert

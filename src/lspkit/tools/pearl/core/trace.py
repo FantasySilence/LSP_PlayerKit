@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..constants import DAMPING, DIRECTION_MATRICES, GRAVITY
+from ..constants import DAMPING, DIRECTION_MATRICES, GRAVITY, GROUND_Y
 
 
 def generate(
@@ -55,3 +55,53 @@ def generate(
             {"t": tick, "x": float(x), "y": float(y), "z": float(z)}
         )
     return points
+
+
+def find_landing(points: list[dict], ground_y: float = GROUND_Y) -> dict | None:
+    """
+    轨迹里第一个落到地面（y <= ground_y）的点；未落地返回 None.
+
+    Y 只用来判断落地时刻，水平位置仍由 TNT 当量决定（与旧版一致）。
+    """
+
+    for point in points:
+        if point["y"] <= ground_y:
+            return {
+                "tick": int(point["t"]),
+                "x": float(point["x"]),
+                "y": float(point["y"]),
+                "z": float(point["z"]),
+            }
+    return None
+
+
+def simulate(
+    x0: float,
+    z0: float,
+    tnt_num: np.ndarray,
+    direction: str,
+    max_ticks: int,
+    mode: str = "flat",
+    settings: dict | None = None,
+    ground_y: float = GROUND_Y,
+) -> dict:
+    """
+    按「蓝 / 红 TNT 数量 + 方向」直接模拟一炮，并给出落地信息.
+
+    返回 points / landing（未落地为 None）/ distance（水平距离，落点或终点）.
+    """
+
+    points = generate(
+        x0, z0, tnt_num, direction, max_ticks, mode=mode, settings=settings
+    )
+    landing = find_landing(points, ground_y)
+    last = points[-1]
+    end = landing or last
+    distance = float(np.hypot(end["x"] - x0, end["z"] - z0))
+    return {
+        "points": points,
+        "landing": landing,
+        "distance": distance,
+        "groundY": float(ground_y),
+        "simulatedTicks": int(last["t"]),
+    }

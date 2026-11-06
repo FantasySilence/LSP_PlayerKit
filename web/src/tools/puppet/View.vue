@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
 import { t } from '../../platform/i18n'
@@ -13,6 +13,7 @@ import type {
   DiagnoseCheck,
   ImportResult,
   Order,
+  OrderDraft,
   Plan,
   PlanCommand,
   RunMeta,
@@ -50,11 +51,23 @@ const polling = ref<number | null>(null)
 const cleanupNames = ref<string[]>([])
 const bottomTab = ref<'run' | 'ledger'>('run')
 
+const logBox = ref<HTMLElement | null>(null)
+const logPinned = ref(true)
+const continueBusy = ref(false)
+
+const draftReady = ref(false)
+let draftTimer = 0
+
 const restored = ref<{ order: Order; commands: PlanCommand[] } | null>(null)
 
 const hoveredStation = ref('')
 
-const pending = ref<{ commands: string[]; phase: 'spawn' | 'kill'; meta: RunMeta } | null>(null)
+const pending = ref<{
+  commands: string[]
+  phase: 'spawn' | 'kill'
+  meta: RunMeta
+  batchSize: number
+} | null>(null)
 const confirmOpen = ref(false)
 const diagOpen = ref(false)
 const diagChecks = ref<DiagnoseCheck[]>([])
@@ -109,10 +122,38 @@ const restoredLabel = computed(() => {
 })
 
 const running = computed(() => run.value?.state === 'running')
-const runStateLabel = computed(() => t(`puppet.run.state.${run.value?.state ?? 'idle'}`))
+const waitingContinue = computed(() => running.value && Boolean(run.value?.waiting))
+const runStateLabel = computed(() =>
+  waitingContinue.value
+    ? t('puppet.run.state.waiting')
+    : t(`puppet.run.state.${run.value?.state ?? 'idle'}`),
+)
 const runPercent = computed(() => {
   const total = run.value?.total ?? 0
   return total ? Math.min(100, Math.round(((run.value?.sent ?? 0) / total) * 100)) : 0
+})
+
+// ------------------------------ 日志滚动（cmd 风格） ------------------------------ #
+const logTail = computed(() => {
+  const logs = run.value?.logs ?? []
+  return logs.length ? logs[logs.length - 1] : ''
+})
+
+function onLogScroll() {
+  const box = logBox.value
+  if (!box) return
+  logPinned.value = box.scrollHeight - box.scrollTop - box.clientHeight < 24
+}
+
+async function stickLogsToBottom(force = false) {
+  if (!force && !logPinned.value) return
+  await nextTick()
+  const box = logBox.value
+  if (box) box.scrollTop = box.scrollHeight
+}
+
+watch(logTail, () => {
+  void stickLogsToBottom()
 })
 
 function stationLabel(station: Station): string {
@@ -147,6 +188,53 @@ watch(
   () => revision[props.tool.id],
   () => syncAllowExecute(),
 )
+
+// ------------------------------ 订单草稿 ------------------------------ #
+async function loadDraft() {
+  try {
+    const data = await callTool<{ draft: OrderDraft }>('puppet', 'draft_load')
+    const draft = data?.draft
+    if (draft) {
+      const ids = new Set(stations.value.map((station) => station.id))
+      if (draft.origin && ids.has(draft.origin)) originId.value = draft.origin
+      if (draft.dest && ids.has(draft.dest) && draft.dest !== originId.value) {
+        destId.value = draft.dest
+      }
+      if (draft.boxes > 0) boxes.value = draft.boxes
+      if (draft.operation === 'spawn_at_origin' || draft.operation === 'spawn_at_dest') {
+        operation.value = draft.operation
+      }
+    }
+  } catch {
+    // 草稿读不出来（旧数据 / 权限问题）不影响正常使用
+  } finally {
+    draftReady.value = true
+  }
+}
+
+function draftPayload() {
+  return {
+    origin: originId.value,
+    dest: destId.value,
+    boxes: Math.max(0, Math.trunc(Number(boxes.value) || 0)),
+    operation: operation.value,
+  }
+}
+
+function flushDraft() {
+  window.clearTimeout(draftTimer)
+  return callTool('puppet', 'draft_save', draftPayload()).catch(() => undefined)
+}
+
+function scheduleDraftSave() {
+  if (!draftReady.value) return
+  window.clearTimeout(draftTimer)
+  draftTimer = window.setTimeout(() => {
+    void flushDraft()
+  }, 400)
+}
+
+watch([originId, destId, boxes, operation], scheduleDraftSave)
 
 async function generate() {
   if (!originId.value || !destId.value) {
@@ -377,7 +465,12 @@ function requestExecute() {
       spawnStation: spawnStationOf(plan.value?.spawnStation),
     }
   }
-  pending.value = { commands: commandList, phase: runPhase, meta }
+  // 每批人数：计划里有就用计划的，台账恢复的用设置里的默认值（0 表示不分批）
+  const perBatch = Number(
+    plan.value?.botsPerBatch ?? getSettings(props.tool.id).botsPerBatch ?? 0,
+  )
+  const batchSize = Number.isFinite(perBatch) && perBatch > 0 ? Math.trunc(perBatch) : 0
+  pending.value = { commands: commandList, phase: runPhase, meta, batchSize }
   confirmOpen.value = true
 }
 
@@ -386,6 +479,7 @@ function requestCleanup() {
   pending.value = {
     commands: cleanupNames.value.map((name) => `/player ${name} kill`),
     phase: 'kill',
+    batchSize: 0,
     meta: {
       origin: originId.value,
       dest: destId.value,
@@ -411,6 +505,7 @@ async function confirmRun() {
       commands: pending.value.commands,
       phase: pending.value.phase,
       meta: pending.value.meta,
+      batchSize: pending.value.batchSize,
     })
     runId.value = data.runId
     run.value = {
@@ -427,12 +522,31 @@ async function confirmRun() {
       elapsed: 0,
       error: '',
       meta: pending.value.meta,
+      waiting: false,
+      batch: 0,
+      batches: pending.value.batchSize
+        ? Math.ceil(data.total / pending.value.batchSize)
+        : 0,
     }
+    logPinned.value = true
     bottomTab.value = 'run'
+    void stickLogsToBottom(true)
     notify('success', t('puppet.run.started'))
     startPolling()
   } catch (error) {
     notifyError(error)
+  }
+}
+
+async function continueRun() {
+  if (!runId.value || continueBusy.value) return
+  continueBusy.value = true
+  try {
+    await callTool('puppet', 'run_continue', { runId: runId.value })
+  } catch (error) {
+    notifyError(error)
+  } finally {
+    continueBusy.value = false
   }
 }
 
@@ -454,6 +568,7 @@ async function pollStatus() {
     const data = await callTool<RunState>('puppet', 'run_status', { runId: runId.value })
     if (run.value) run.value.sent = data.sent
     run.value = { ...data }
+    void stickLogsToBottom()
     if (data.state !== 'running') {
       stopPolling()
       await refreshHistory()
@@ -480,6 +595,21 @@ async function stopRun() {
     await callTool('puppet', 'run_stop', { runId: runId.value })
   } catch (error) {
     notifyError(error)
+  }
+}
+
+// 切换到别的工具再回来时，执行线程还在跑（可能停在批间确认），把界面接回去
+async function resumeRunning() {
+  try {
+    const data = await callTool<RunState>('puppet', 'run_status', {})
+    if (!data || data.state !== 'running') return
+    run.value = data
+    runId.value = data.id
+    bottomTab.value = 'run'
+    logPinned.value = true
+    startPolling()
+  } catch {
+    // 没有可接续的执行记录
   }
 }
 
@@ -516,7 +646,9 @@ onMounted(async () => {
   }
   try {
     await refreshStations()
+    await loadDraft()
     await refreshHistory()
+    await resumeRunning()
   } catch (error) {
     notifyError(error)
   }
@@ -525,6 +657,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopPolling()
   window.clearTimeout(deleteTimer)
+  if (draftReady.value) void flushDraft()
 })
 </script>
 
@@ -754,11 +887,29 @@ onUnmounted(() => {
             <div v-if="run.current" class="current mono" :title="run.current">
               {{ t('puppet.run.current') }}: {{ run.current }}
             </div>
+            <div v-if="waitingContinue" class="wait-bar">
+              <div class="wait-text">
+                <span class="mono">
+                  {{
+                    t('puppet.run.waitBatch', {
+                      batch: run.batch ?? 0,
+                      batches: run.batches ?? 0,
+                      sent: run.sent,
+                      total: run.total,
+                    })
+                  }}
+                </span>
+                <span class="wait-hint">{{ t('puppet.run.waitHint') }}</span>
+              </div>
+              <button class="btn sm primary" :disabled="continueBusy" @click="continueRun">
+                {{ t('puppet.action.continueBatch') }}
+              </button>
+            </div>
             <div v-if="cleanupNames.length && !running" class="cleanup">
               <span>{{ t('puppet.run.cleanupHint', { n: cleanupNames.length }) }}</span>
               <button class="btn sm" @click="requestCleanup">{{ t('puppet.action.cleanup') }}</button>
             </div>
-            <div class="run-logs mono">
+            <div ref="logBox" class="run-logs mono" @scroll="onLogScroll">
               <div v-for="(line, index) in run.logs" :key="index" class="log-line">{{ line }}</div>
             </div>
           </template>
@@ -916,8 +1067,8 @@ onUnmounted(() => {
 }
 
 .bottom-panel {
-  flex: 0 0 240px;
-  min-height: 200px;
+  flex: 0 0 300px;
+  min-height: 260px;
 }
 
 .head-actions {
@@ -1220,6 +1371,31 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
+.wait-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--brand-dim);
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.wait-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.wait-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .run-logs {
   flex: 1;
   min-height: 90px;
@@ -1229,6 +1405,7 @@ onUnmounted(() => {
   background: var(--bg);
   font-size: 10px;
   line-height: 1.6;
+  scrollbar-gutter: stable;
 }
 
 .log-line {

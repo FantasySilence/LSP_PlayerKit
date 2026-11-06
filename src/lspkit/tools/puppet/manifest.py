@@ -11,9 +11,12 @@ from lspkit.platform.registry import ToolManifest
 
 from .actions import (
     diagnose_action,
+    draft_load,
+    draft_save,
     history_clear,
     history_list,
     plan_action,
+    run_continue,
     run_start,
     run_status,
     run_stop,
@@ -59,6 +62,9 @@ HANDLERS = {
     "run_start": run_start,
     "run_status": run_status,
     "run_stop": run_stop,
+    "run_continue": run_continue,
+    "draft_load": draft_load,
+    "draft_save": draft_save,
     "diagnose": diagnose_action,
     "validate_template": validate_template_action,
 }

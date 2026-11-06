@@ -7,6 +7,8 @@
 # @Descript: 假人搬货 API 契约        #
 # =================================== #
 
+import time
+
 STATION = {
     "id": "all",
     "name": "重溟洋工业区·全物品",
@@ -195,9 +197,11 @@ class _FakeRunner:
     """只验证线程 / 状态 / 台账链路，不碰真实键盘."""
 
     last_config = None
+    last_kwargs: dict = {}
 
-    def __init__(self, config=None, logger=None, on_progress=None):
+    def __init__(self, config=None, logger=None, on_progress=None, **kwargs):
         _FakeRunner.last_config = config
+        _FakeRunner.last_kwargs = kwargs
         self.logger = logger
         self.on_progress = on_progress
 
@@ -271,3 +275,201 @@ def test_run_start_to_ledger(api, monkeypatch):
     assert orders[-1]["meta"]["spawnStation"]["dimension"] == "overworld"
     assert _FakeRunner.last_config is not None
     assert _FakeRunner.last_config.final_message == "Operation completed successfully"
+    assert _FakeRunner.last_kwargs["batch_size"] == 0
+    assert _FakeRunner.last_kwargs["batch_gate"] is None
+
+
+class _QuietTransport:
+    """dry-run 用的假 Transport：只提供虚拟时钟与空按键状态."""
+
+    def __init__(self):
+        self.time = 0.0
+        self.keys: set = set()
+
+    def now(self):
+        return self.time
+
+    def sleep(self, seconds):
+        self.time += max(seconds, 0.0)
+
+    def key_down(self, key):
+        return key in self.keys
+
+    def find_window(self, patterns, klass):
+        return None
+
+    def is_window(self, hwnd):
+        return False
+
+    def foreground(self):
+        return 0
+
+    def activate(self, hwnd):
+        return False
+
+    def responsive(self, hwnd, timeout_ms):
+        return True
+
+    def tap(self, key, hold):
+        return True
+
+    def chord(self, modifiers, key, hold):
+        return True
+
+    def type_text(self, text, hold, gap):
+        return []
+
+    def clipboard_get(self):
+        return None
+
+    def clipboard_set(self, text):
+        return True
+
+
+def _dry_runner(**kwargs):
+    """用真实 CommandRunner（dry-run + 假 Transport）走完整的批间闸门."""
+
+    from lspkit.platform.autoinput import CommandRunner, InputConfig
+
+    kwargs["config"] = InputConfig(
+        dry_run=True,
+        start_delay=0,
+        command_interval=0.01,
+        align_ticks=False,
+        restore_clipboard=False,
+    )
+    kwargs["transport"] = _QuietTransport()
+    return CommandRunner(**kwargs)
+
+
+def test_batch_confirmation_roundtrip(api, monkeypatch):
+    import lspkit.tools.puppet.actions as puppet_actions
+
+    monkeypatch.setattr(puppet_actions, "CommandRunner", _dry_runner)
+    settings = api.settings_get("puppet")["data"]
+    settings["allowExecute"] = True
+    assert api.settings_save("puppet", settings)["ok"] is True
+
+    start = api.tool_call(
+        "puppet",
+        "run_start",
+        {
+            "commands": ["/say a", "/say b", "/say c", "/say d"],
+            "phase": "spawn",
+            "batchSize": 2,
+            "meta": {
+                "origin": "all",
+                "dest": "vil",
+                "boxes": 4,
+                "bots": 4,
+                "names": ["n1", "n2", "n3", "n4"],
+            },
+        },
+    )
+    assert start["ok"] is True, start
+    run_id = start["data"]["runId"]
+
+    status = {}
+    for _ in range(300):
+        status = api.tool_call("puppet", "run_status", {"runId": run_id})["data"]
+        if status.get("waiting"):
+            break
+        time.sleep(0.01)
+
+    assert status["waiting"] is True, status
+    assert status["state"] == "running"
+    assert status["batch"] == 1
+    assert status["batches"] == 2
+    assert status["sent"] == 2
+    assert any("等待确认后继续下一批" in line for line in status["logs"])
+
+    continued = api.tool_call("puppet", "run_continue", {"runId": run_id})
+    assert continued["ok"] is True, continued
+    assert continued["data"]["continued"] is True
+
+    for _ in range(300):
+        status = api.tool_call("puppet", "run_status", {"runId": run_id})["data"]
+        if status["state"] != "running":
+            break
+        time.sleep(0.01)
+
+    assert status["state"] == "done", status
+    assert status["sent"] == 4
+    assert status["waiting"] is False
+
+    again = api.tool_call("puppet", "run_continue", {"runId": run_id})
+    assert again["ok"] is True, again
+    assert again["data"]["continued"] is False
+
+
+def test_batch_run_can_be_stopped_while_waiting(api, monkeypatch):
+    import lspkit.tools.puppet.actions as puppet_actions
+
+    monkeypatch.setattr(puppet_actions, "CommandRunner", _dry_runner)
+    settings = api.settings_get("puppet")["data"]
+    settings["allowExecute"] = True
+    api.settings_save("puppet", settings)
+
+    start = api.tool_call(
+        "puppet",
+        "run_start",
+        {
+            "commands": ["/say a", "/say b", "/say c"],
+            "phase": "spawn",
+            "batchSize": 1,
+            "meta": {"origin": "all", "dest": "vil", "boxes": 3, "bots": 3},
+        },
+    )
+    assert start["ok"] is True, start
+    run_id = start["data"]["runId"]
+
+    status = {}
+    for _ in range(300):
+        status = api.tool_call("puppet", "run_status", {"runId": run_id})["data"]
+        if status.get("waiting"):
+            break
+        time.sleep(0.01)
+    assert status["waiting"] is True, status
+
+    assert api.tool_call("puppet", "run_stop", {"runId": run_id})["ok"] is True
+
+    for _ in range(300):
+        status = api.tool_call("puppet", "run_status", {"runId": run_id})["data"]
+        if status["state"] != "running":
+            break
+        time.sleep(0.01)
+
+    assert status["state"] == "aborted", status
+    assert status["sent"] == 1
+
+
+def test_draft_roundtrip(api):
+    empty = api.tool_call("puppet", "draft_load", {})["data"]["draft"]
+    assert empty["origin"] == "" and empty["dest"] == ""
+    assert empty["boxes"] == 0
+    assert empty["operation"] == "spawn_at_origin"
+
+    saved = api.tool_call(
+        "puppet",
+        "draft_save",
+        {"origin": "all", "dest": "vil", "boxes": 250, "operation": "spawn_at_dest"},
+    )
+    assert saved["ok"] is True, saved
+
+    draft = api.tool_call("puppet", "draft_load", {})["data"]["draft"]
+    assert draft["origin"] == "all"
+    assert draft["dest"] == "vil"
+    assert draft["boxes"] == 250
+    assert draft["operation"] == "spawn_at_dest"
+    assert draft["savedAt"]
+
+
+def test_draft_sanitizes_garbage(api):
+    api.tool_call(
+        "puppet",
+        "draft_save",
+        {"origin": "all", "dest": "vil", "boxes": "abc", "operation": "moon"},
+    )
+    draft = api.tool_call("puppet", "draft_load", {})["data"]["draft"]
+    assert draft["boxes"] == 0
+    assert draft["operation"] == "spawn_at_origin"

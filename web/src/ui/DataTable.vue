@@ -12,6 +12,8 @@ const props = defineProps<{
   defaultSort?: { key: string; dir: 'asc' | 'desc' }
   highlightIndex?: number | null
   emptyKey?: string
+  /** 是否自动滚动到高亮行；false 时回到第一行（手动模拟用） */
+  scrollToTarget?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -45,15 +47,23 @@ function canSort(column: ColumnDef): boolean {
 const wrap = ref<HTMLDivElement | null>(null)
 
 function scrollToHighlight(): void {
-  if (props.highlightIndex === null || props.highlightIndex === undefined) return
   nextTick(() => {
+    if (props.scrollToTarget === false) {
+      // 手动模拟：列表从第一行开始看，落地行只做高亮
+      if (wrap.value) wrap.value.scrollTop = 0
+      return
+    }
+    if (props.highlightIndex === null || props.highlightIndex === undefined) return
     const row = wrap.value?.querySelector('tr.target') as HTMLElement | null
     row?.scrollIntoView({ block: 'center' })
   })
 }
 
 onMounted(scrollToHighlight)
-watch(() => [props.highlightIndex, props.rows.length], scrollToHighlight)
+watch(
+  () => [props.highlightIndex, props.rows.length, props.scrollToTarget],
+  scrollToHighlight,
+)
 
 function onHeader(column: ColumnDef): void {
   if (!canSort(column)) return

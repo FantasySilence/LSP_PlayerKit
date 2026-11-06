@@ -35,16 +35,37 @@ from .legacy import parse as parse_legacy
 
 DOC_STATIONS = "stations"
 DOC_ORDERS = "orders"
+DOC_DRAFT = "draft"
 
 # ------ 台账里每条运单最多保存多少条命令（够用，又不会把 JSON 撑爆） ------ #
 MAX_HISTORY_COMMANDS = 200
 
-# ------ 运行中的执行器：runId → {record, runner} ------ #
+# ------ 运行中的执行器：runId → {record, runner, gate} ------ #
 _RUNS: dict = {}
 _LAST_RUN: dict = {"id": ""}
 _LOCK = threading.Lock()
 _MAX_LOG = 120
 _MAX_RUNS = 20
+
+
+class _BatchGate:
+    """
+    批间闸门：runner 每发完一批就 poll 一次，run_continue 命中后放行.
+
+    只做「点一下」，不保存跨批状态；中断由 runner 自己轮询 ESC / stop()。
+    """
+
+    def __init__(self) -> None:
+        self._hit = threading.Event()
+
+    def open(self) -> None:
+        self._hit.set()
+
+    def poll(self) -> bool:
+        if self._hit.is_set():
+            self._hit.clear()
+            return True
+        return False
 
 
 # =================================== #
@@ -260,6 +281,10 @@ def run_start(payload: dict, ctx) -> dict:
         raise AppError("INVALID_PAYLOAD", "没有可执行的命令")
 
     phase = params.choice(payload, "phase", ("spawn", "kill"), default="spawn")
+    batch_size = params.integer(
+        payload, "batchSize", default=0, minimum=0, maximum=MAX_COMMANDS,
+        label="每批命令数",
+    )
     meta = payload.get("meta")
     meta = meta if isinstance(meta, dict) else {}
 
@@ -280,8 +305,13 @@ def run_start(payload: dict, ctx) -> dict:
             "finishedAt": None,
             "error": "",
             "meta": meta,
+            "batchSize": batch_size,
+            "batch": 0,
+            "batches": (len(cleaned) + batch_size - 1) // batch_size if batch_size else 0,
+            "waiting": False,
         }
-        _RUNS[run_id] = {"record": record, "runner": None}
+        gate = _BatchGate() if batch_size else None
+        _RUNS[run_id] = {"record": record, "runner": None, "gate": gate}
         _LAST_RUN["id"] = run_id
 
     config = InputConfig(
@@ -299,6 +329,11 @@ def run_start(payload: dict, ctx) -> dict:
         logger=lambda text: _log(run_id, text),
         on_progress=lambda index, total, command: _progress(
             run_id, index, total, command
+        ),
+        batch_size=batch_size,
+        batch_gate=gate,
+        on_wait=lambda waiting, batch, total: _wait_state(
+            run_id, waiting, batch, total
         ),
     )
     _RUNS[run_id]["runner"] = runner
@@ -339,8 +374,74 @@ def run_stop(payload: dict, ctx) -> dict:
     return {"runId": run_id, "stopping": True}
 
 
+def run_continue(payload: dict, ctx) -> dict:
+    """
+    放行下一批：只对停在批间闸门的运单有效.
+
+    不在等待中时返回 continued=False，不视为错误（重复点击 / 已结束时都能安全调用）。
+    """
+
+    run_id = payload.get("runId") or _LAST_RUN["id"]
+    if not run_id:
+        raise AppError("RUN_NOT_FOUND", "没有正在执行的运单")
+    with _LOCK:
+        entry = _RUNS.get(run_id)
+        if entry is None:
+            raise AppError("RUN_NOT_FOUND", f"没有找到执行记录：{run_id}")
+        record = entry["record"]
+        if record["state"] != "running":
+            return {"runId": run_id, "continued": False, "state": record["state"]}
+        gate = entry.get("gate")
+        if not record.get("waiting") or gate is None:
+            return {"runId": run_id, "continued": False, "state": record["state"]}
+        gate.open()
+        record["waiting"] = False
+        batch = int(record.get("batch", 0))
+        batches = int(record.get("batches", 0))
+    _log(run_id, f"已确认，继续第 {batch + 1}/{batches} 批")
+    return {"runId": run_id, "continued": True, "state": "running"}
+
+
 def diagnose_action(payload: dict, ctx) -> dict:
     return {"supported": autoinput_supported(), "checks": run_diagnose()}
+
+
+# =================================== #
+# @Section: 订单草稿                   #
+# =================================== #
+def draft_load(payload: dict, ctx) -> dict:
+    """
+    读取上次留在订单区的始发站 / 目的站 / 数量 / 操作.
+
+    应用每次启动都会先恢复这份草稿，避免重新选站点。
+    """
+
+    raw = ctx.doc_load("puppet", DOC_DRAFT, {"version": 1})
+    return {"draft": _sanitize_draft(raw)}
+
+
+def draft_save(payload: dict, ctx) -> dict:
+    draft = _sanitize_draft(payload)
+    draft["savedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    ctx.doc_save("puppet", DOC_DRAFT, {"version": 1, **draft})
+    return {"draft": draft}
+
+
+def _sanitize_draft(raw: dict) -> dict:
+    operation = raw.get("operation")
+    if operation not in OPERATIONS:
+        operation = "spawn_at_origin"
+    try:
+        boxes = int(raw.get("boxes") or 0)
+    except (TypeError, ValueError):
+        boxes = 0
+    return {
+        "origin": str(raw.get("origin") or "")[:64],
+        "dest": str(raw.get("dest") or "")[:64],
+        "boxes": max(0, min(boxes, MAX_BOXES)),
+        "operation": operation,
+        "savedAt": str(raw.get("savedAt") or ""),
+    }
 
 
 # =================================== #
@@ -441,12 +542,23 @@ def _log(run_id: str, text: str) -> None:
             del logs[: len(logs) - _MAX_LOG]
 
 
+def _wait_state(run_id: str, waiting: bool, batch: int, total: int) -> None:
+    with _LOCK:
+        entry = _RUNS.get(run_id)
+        if entry is None:
+            return
+        entry["record"].update(waiting=bool(waiting), batch=int(batch), batches=int(total))
+
+
 def _progress(run_id: str, index: int, total: int, command: str) -> None:
     with _LOCK:
         entry = _RUNS.get(run_id)
         if entry is None:
             return
-        entry["record"].update(index=index, total=total, current=command[:200])
+        # sent 跟着进度实时更新，界面上的进度条 / 计数不用等整单结束
+        entry["record"].update(
+            index=index, sent=index, total=total, current=command[:200]
+        )
 
 
 def _load_stations(ctx) -> list:

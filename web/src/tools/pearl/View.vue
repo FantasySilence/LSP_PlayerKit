@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
@@ -33,9 +33,16 @@ const manualDirection = ref(false)
 const tab = ref<'table' | 'trace'>('table')
 const points = ref<TracePoint[]>([])
 const landingTick = ref<number | null>(null)
+// 手动模拟的轨迹从第一行开始看（右侧结果仍高亮落地刻）
+const traceAtTop = ref(false)
 const busy = ref(false)
 const calcVersion = ref(0)
 const decode = ref<{ blueText: string; redText: string; blue: number[]; red: number[] } | null>(null)
+
+// ------ 手动模拟：不依赖结果表，直接按蓝 / 红 TNT 数量走弹道 ------
+const manualBlue = ref<number | string>(0)
+const manualRed = ref<number | string>(0)
+const manualSummary = ref('')
 
 const traceColumns: ColumnDef[] = [
   { key: 't', nameKey: 'pearl.trace.col.t', type: 'int' },
@@ -109,6 +116,7 @@ async function calculate() {
     landingTick.value = null
     tab.value = 'table'
     decode.value = null
+    manualSummary.value = ''
     if (result.rows.length) {
       let best = 0
       result.rows.forEach((row, index) => {
@@ -164,6 +172,50 @@ async function simulate() {
     })
     points.value = result.points
     landingTick.value = row.ticks
+    traceAtTop.value = false
+    tab.value = 'trace'
+  } catch (error) {
+    notifyError(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function simulateManual() {
+  if (!direction.value) {
+    notify('info', t('pearl.manual.needDirection'))
+    return
+  }
+  busy.value = true
+  try {
+    const result = await callTool<{
+      points: TracePoint[]
+      landing: { tick: number; x: number; y: number; z: number } | null
+      distance: number
+      ticks: number
+      total: number
+      groundY: number
+    }>(props.tool.id, 'simulate', {
+      origin: { x: toNumber(originX.value, '炮口 X'), z: toNumber(originZ.value, '炮口 Z') },
+      direction: direction.value,
+      mode: mode.value,
+      blue: toNumber(manualBlue.value, '蓝色 TNT'),
+      red: toNumber(manualRed.value, '红色 TNT'),
+      ticks: 400,
+    })
+    points.value = result.points
+    landingTick.value = result.landing ? result.landing.tick : null
+    traceAtTop.value = true
+    manualSummary.value = result.landing
+      ? t('pearl.manual.landed', {
+          tick: result.landing.tick,
+          x: result.landing.x.toFixed(1),
+          z: result.landing.z.toFixed(1),
+          distance: Math.round(result.distance),
+          ground: result.groundY,
+        })
+      : t('pearl.manual.airborne', { ticks: result.ticks })
+    decode.value = null
     tab.value = 'trace'
   } catch (error) {
     notifyError(error)
@@ -268,6 +320,38 @@ onMounted(async () => {
           <CompassRose :direction="direction" :manual="manualDirection" @select="selectDirection" />
         </div>
 
+        <div class="manual-block">
+          <div class="manual-head">
+            <span class="manual-title">{{ t('pearl.manual.title') }}</span>
+            <span class="manual-hint">{{ t('pearl.manual.hint') }}</span>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label">
+                <span>{{ t('pearl.field.blueTnt') }}</span>
+                <span class="unit">{{ t('pearl.unit.tnt') }}</span>
+              </label>
+              <input v-model.number="manualBlue" class="input mono" type="number" min="0" step="1" />
+            </div>
+            <div class="field">
+              <label class="field-label">
+                <span>{{ t('pearl.field.redTnt') }}</span>
+                <span class="unit">{{ t('pearl.unit.tnt') }}</span>
+              </label>
+              <input v-model.number="manualRed" class="input mono" type="number" min="0" step="1" />
+            </div>
+          </div>
+          <button
+            class="btn block"
+            :disabled="busy || !direction"
+            :title="direction ? '' : t('pearl.manual.needDirection')"
+            @click="simulateManual"
+          >
+            {{ t('pearl.action.simulateManual') }}
+          </button>
+          <div v-if="manualSummary" class="manual-summary mono">{{ manualSummary }}</div>
+        </div>
+
         <div class="actions">
           <button class="btn primary" :disabled="busy" @click="calculate">
             {{ busy ? t('status.calculating') : t('pearl.action.calculate') }}
@@ -300,7 +384,7 @@ onMounted(async () => {
         </div>
         <span class="muted">
           {{ direction ? t(`direction.${direction}`) : t('direction.unknown') }} ·
-          {{ rows.length }} {{ t('label.rows') }}
+          {{ tab === 'trace' ? points.length : rows.length }} {{ t('label.rows') }}
         </span>
       </div>
 
@@ -321,6 +405,7 @@ onMounted(async () => {
             :rows="pointRows"
             :selected="null"
             :highlight-index="landingIndex"
+            :scroll-to-target="!traceAtTop"
           />
         </div>
       </div>
@@ -394,6 +479,43 @@ onMounted(async () => {
 
 .direction-field {
   align-items: center;
+}
+
+.manual-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.manual-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.manual-title {
+  font-size: 12px;
+}
+
+.manual-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.manual-summary {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 11px;
+  line-height: 1.6;
+  word-break: break-all;
 }
 
 .actions {

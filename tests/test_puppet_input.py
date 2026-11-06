@@ -249,3 +249,95 @@ def test_random_lag_never_sends_partial_commands():
                 index += 1
                 last_clip = None
         assert index == len(expected)
+
+
+# ------ 批间确认：每批发完必须停下来等闸门 ------ #
+class _OpenGate:
+    """立刻放行，并记录被询问的次数."""
+
+    def __init__(self):
+        self.polls = 0
+
+    def poll(self):
+        self.polls += 1
+        return True
+
+
+class _ClosedGate:
+    def poll(self):
+        return False
+
+
+def test_batches_stop_between_chunks():
+    fake = FakeTransport()
+    gate = _OpenGate()
+    waits: list = []
+    logger: list = []
+    runner = CommandRunner(
+        config=make_config(),
+        transport=fake,
+        logger=logger.append,
+        batch_size=2,
+        batch_gate=gate,
+        on_wait=lambda waiting, batch, batches: waits.append((waiting, batch, batches)),
+    )
+
+    report = runner.run(["/a", "/b", "/c", "/d"])
+
+    assert report.sent == 4
+    assert not report.aborted
+    assert gate.polls == 1, "只在第 1 批末尾等一次，最后一批不等"
+    assert (True, 1, 2) in waits
+    assert (False, 1, 2) in waits
+    assert any("等待确认后继续下一批" in line for line in logger)
+
+
+def test_single_batch_never_waits():
+    fake = FakeTransport()
+    gate = _OpenGate()
+    runner = CommandRunner(
+        config=make_config(), transport=fake, batch_size=2, batch_gate=gate
+    )
+    report = runner.run(["/a", "/b"])
+    assert report.sent == 2
+    assert gate.polls == 0
+
+
+def test_batch_wait_can_be_aborted_with_esc():
+    fake = FakeTransport()
+    runner = CommandRunner(
+        config=make_config(),
+        transport=fake,
+        batch_size=2,
+        batch_gate=_ClosedGate(),
+    )
+
+    def on_progress(index, total, command):
+        if index == 2:
+            fake.keys_down.add("esc")
+
+    runner._on_progress = on_progress
+    report = runner.run(["/a", "/b", "/c", "/d"])
+
+    assert report.aborted
+    assert report.sent == 2, "第二批不能开始"
+
+
+def test_batch_wait_honours_stop():
+    fake = FakeTransport()
+    runner = CommandRunner(
+        config=make_config(),
+        transport=fake,
+        batch_size=1,
+        batch_gate=_ClosedGate(),
+    )
+
+    def on_progress(index, total, command):
+        if index == 1:
+            runner.stop()
+
+    runner._on_progress = on_progress
+    report = runner.run(["/a", "/b"])
+
+    assert report.aborted
+    assert report.sent == 1

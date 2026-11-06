@@ -70,6 +70,7 @@
 
   "puppet.run.state.idle": "Ready",
   "puppet.run.state.running": "Running",
+  "puppet.run.state.waiting": "Waiting",
   "puppet.run.state.done": "Done",
   "puppet.run.state.aborted": "Stopped",
   "puppet.run.state.error": "Error",
@@ -85,6 +86,9 @@
   "puppet.run.cleanupHint": "{n} bots may already exist; consider killing them",
   "puppet.run.cleanupReady": "Cleanup commands built; switch to the Kill tab to run them",
   "puppet.run.empty": "No run yet",
+  "puppet.run.waitBatch": "Batch {batch}/{batches} done · {sent}/{total} sent",
+  "puppet.run.waitHint": "Finish this batch in-game (load / unload), then continue so the bots do not pile up",
+  "puppet.action.continueBatch": "Continue",
 
   "puppet.diag.title": "Diagnostics",
   "puppet.diag.ok": "OK",

@@ -18,6 +18,18 @@ MOTION_PER_TNT = {
 # 方向字母 → 正负
 DIRECTION_TABLE = {"W": 1, "E": -1, "N": 1, "S": -1, "U": 1, "D": -1}
 
+# 方向二进制码 → 三个 TNT 各自的落点（与 core/direction._points 一一对应）
+DIRECTION_POINTS = {
+    "000": ["NWD", "NWU", "SWU"],
+    "100": ["NWD", "NWU", "NEU"],
+    "101": ["NED", "NEU", "NWU"],
+    "111": ["NED", "NEU", "SEU"],
+    "110": ["SED", "SEU", "NEU"],
+    "010": ["SED", "SEU", "SWU"],
+    "001": ["SWD", "SWU", "NWU"],
+    "011": ["SWD", "SWU", "SEU"],
+}
+
 # 方向二进制码 ↔ 方位名
 DIRECTION_CODE_TABLE = {
     "000": "东南偏东", "100": "东南偏南",

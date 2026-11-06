@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
@@ -31,10 +31,21 @@ interface DecodeResult {
   landing?: { x: number; z: number; ticks: number }
   text?: string
   tnt?: number[]
+  motion?: { x: number; y: number; z: number }
+  time?: number
+  atTime?: { tick: number; x: number; y: number; z: number } | null
+  landedBefore?: boolean
 }
 
 const decoded = ref<DecodeResult | null>(null)
+const decodedSource = ref<'row' | 'manual'>('row')
 const current = computed(() => (selected.value === null ? null : rows.value[selected.value] ?? null))
+
+// ------ 手动落点预报：三个 TNT + 手选方向 + 飞行时间，不需要先算结果 ------
+const DIR_CODES = ['000', '100', '101', '111', '110', '010', '011', '001']
+const manualTnt = ref<[number | string, number | string, number | string]>([0, 0, 0])
+const manualDir = ref('000')
+const manualTime = ref<number | string>(400)
 
 const tableRows = computed(() =>
   rows.value.map((row) => ({ ...row, dirText: t(`border.dir.${row.dirCode}`) })),
@@ -62,6 +73,7 @@ async function applySettings() {
   targetZ.value = data.targetZ
   flightTime.value = data.flightTime
   directionMode.value = data.directionMode
+  manualTime.value = data.flightTime
 }
 
 async function saveAsDefault() {
@@ -121,6 +133,7 @@ async function selectRow(index: number) {
   selected.value = index
   const row = rows.value[index]
   if (!row) return
+  decodedSource.value = 'row'
   try {
     const result = await callTool<DecodeResult>(props.tool.id, 'decode', {
       tnt: [row.t1, row.t2, row.t3],
@@ -136,6 +149,29 @@ async function selectRow(index: number) {
   } catch (error) {
     decoded.value = null
     notifyError(error)
+  }
+}
+
+async function forecast() {
+  busy.value = true
+  try {
+    const result = await callTool<DecodeResult>(props.tool.id, 'forecast', {
+      tnt: manualTnt.value.map((value, index) => toNumber(value, `第 ${index + 1} 个 TNT`)),
+      dirCode: manualDir.value,
+      time: Math.max(0, Math.trunc(toNumber(manualTime.value, '预计飞行时间'))),
+      origin: {
+        x: toNumber(originX.value, '炮口 X'),
+        y: toNumber(originY.value, '炮口 Y'),
+        z: toNumber(originZ.value, '炮口 Z'),
+      },
+    })
+    decoded.value = result
+    decodedSource.value = 'manual'
+    selected.value = null
+  } catch (error) {
+    notifyError(error)
+  } finally {
+    busy.value = false
   }
 }
 
@@ -264,6 +300,79 @@ onMounted(async () => {
           <input v-model.number="flightTime" class="input mono" type="number" min="1" step="10" />
         </div>
 
+        <div class="coord-block manual">
+          <div class="coord-head">
+            <span class="marker" />
+            <span class="coord-title">{{ t('border.manual.title') }}</span>
+            <span class="coord-tag">{{ t('border.manual.tag') }}</span>
+          </div>
+          <div class="coords">
+            <label class="coord">
+              <span class="axis">1</span>
+              <input
+                v-model.number="manualTnt[0]"
+                class="input mono"
+                type="number"
+                min="0"
+                step="1"
+                :title="t('border.manual.tnt1')"
+                :aria-label="t('border.manual.tnt1')"
+              />
+            </label>
+            <label class="coord">
+              <span class="axis">2</span>
+              <input
+                v-model.number="manualTnt[1]"
+                class="input mono"
+                type="number"
+                min="0"
+                step="1"
+                :title="t('border.manual.tnt2')"
+                :aria-label="t('border.manual.tnt2')"
+              />
+            </label>
+            <label class="coord">
+              <span class="axis">3</span>
+              <input
+                v-model.number="manualTnt[2]"
+                class="input mono"
+                type="number"
+                min="0"
+                step="1"
+                :title="t('border.manual.tnt3')"
+                :aria-label="t('border.manual.tnt3')"
+              />
+            </label>
+          </div>
+          <div class="field-row manual-row">
+            <div class="field">
+              <label class="field-label">{{ t('border.manual.direction') }}</label>
+              <select v-model="manualDir" class="input">
+                <option v-for="code in DIR_CODES" :key="code" :value="code">
+                  {{ t(`border.dir.${code}`) }}
+                </option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">
+                <span>{{ t('border.manual.flightTime') }}</span>
+                <span class="unit">gt</span>
+              </label>
+              <input
+                v-model.number="manualTime"
+                class="input mono"
+                type="number"
+                min="0"
+                step="10"
+              />
+            </div>
+          </div>
+          <button class="btn block" :disabled="busy" @click="forecast">
+            {{ t('border.action.forecast') }}
+          </button>
+          <div class="manual-hint">{{ t('border.manual.hint') }}</div>
+        </div>
+
         <div class="actions">
           <button class="btn primary" :disabled="busy" @click="calculate">
             {{ busy ? t('status.calculating') : t('border.action.calculate') }}
@@ -312,7 +421,9 @@ onMounted(async () => {
 
         <template v-else>
           <div class="detail-head">
-            <span class="badge brand">{{ t('border.decode.title') }}</span>
+            <span class="badge brand">
+              {{ decodedSource === 'manual' ? t('border.manual.resultTitle') : t('border.decode.title') }}
+            </span>
             <span class="landing">
               <span class="landing-label">{{ t('border.decode.landing') }}</span>
               <span class="mono landing-value">
@@ -323,6 +434,17 @@ onMounted(async () => {
             <button class="btn ghost sm" @click="copy(decoded.text ?? '')">
               {{ t('action.copy') }}
             </button>
+          </div>
+
+          <div v-if="decodedSource === 'manual'" class="at-time mono">
+            <template v-if="decoded.atTime">
+              {{ t('border.manual.atTime', { time: decoded.time ?? 0 }) }}：X
+              {{ decoded.atTime.x.toFixed(3) }} / Y {{ decoded.atTime.y.toFixed(3) }} / Z
+              {{ decoded.atTime.z.toFixed(3) }}
+            </template>
+            <span v-else-if="decoded.landedBefore" class="muted">
+              {{ t('border.manual.atTimeLanded', { time: decoded.time ?? 0 }) }}
+            </span>
           </div>
 
           <div class="detail-grid">
@@ -341,7 +463,9 @@ onMounted(async () => {
 
           <div class="motion mono muted">
             {{ t('border.decode.motion') }}:
-            {{ current?.mx.toFixed(6) }} / {{ current?.my.toFixed(6) }} / {{ current?.mz.toFixed(6) }}
+            {{ (decoded.motion?.x ?? current?.mx ?? 0).toFixed(6) }} /
+            {{ (decoded.motion?.y ?? current?.my ?? 0).toFixed(6) }} /
+            {{ (decoded.motion?.z ?? current?.mz ?? 0).toFixed(6) }}
           </div>
         </template>
       </footer>
@@ -378,6 +502,39 @@ onMounted(async () => {
 .coord-block.target {
   border-color: rgba(62, 224, 196, 0.35);
   background: var(--brand-soft);
+}
+
+.coord-block.manual {
+  border-style: dashed;
+}
+
+.manual-dir {
+  margin-top: 8px;
+}
+
+.manual-row {
+  margin-top: 8px;
+}
+
+.at-time {
+  margin: -2px 0 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.coord-block.manual .btn.block {
+  margin-top: 10px;
+}
+
+.manual-hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .coord-head {

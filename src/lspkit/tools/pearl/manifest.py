@@ -9,7 +9,7 @@
 
 from lspkit.platform.registry import ToolManifest
 
-from .actions import calculate_action, decode_action, trace_action
+from .actions import calculate_action, decode_action, simulate_action, trace_action
 from .legacy import convert
 from .schema import SCHEMA
 
@@ -39,6 +39,7 @@ HANDLERS = {
     "calculate": calculate_action,
     "decode": decode_action,
     "trace": trace_action,
+    "simulate": simulate_action,
 }
 
 LEGACY = convert
