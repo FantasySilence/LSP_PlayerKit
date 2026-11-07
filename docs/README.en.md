@@ -1,6 +1,6 @@
 # LSP PlayerKit
 
-> A desktop toolbox for LSP server players. It merges the Universal Pearl Cannon Configurator, the Border Cannon Configurator, a Material Converter and Puppet Logistics into one app. \
+> A desktop toolbox for LSP server players. It merges the Universal Pearl Cannon Configurator, the Border Cannon Configurator, a Material Converter, Puppet Logistics and a Slime Chunk Finder into one app. \
 > Everything runs locally — no network, no uploads. \
 > Download the latest build from [Baidu Netdisk](https://pan.baidu.com/s/1V3FcoPrWUt3bGQZ-vHqBZg?pwd=1234) (code `1234`). 😘😘😘
 
@@ -33,9 +33,14 @@
     - [5.3 Running commands (optional)](#53-running-commands-optional)
     - [5.4 Ledger](#54-ledger)
     - [5.5 Settings](#55-settings)
-  - [6. Settings](#6-settings)
-  - [7. Data and storage](#7-data-and-storage)
-  - [8. Calculation notes and limitations](#8-calculation-notes-and-limitations)
+  - [6. Slime chunk finder](#6-slime-chunk-finder)
+    - [6.1 Usage](#61-usage)
+    - [6.2 Map and results](#62-map-and-results)
+    - [6.3 Large areas and performance](#63-large-areas-and-performance)
+    - [6.4 Settings](#64-settings)
+  - [7. Settings](#7-settings)
+  - [8. Data and storage](#8-data-and-storage)
+  - [9. Calculation notes and limitations](#9-calculation-notes-and-limitations)
   - [Bundled mini-tools](#bundled-mini-tools)
   - [Stack](#stack)
   - [License](#license)
@@ -48,6 +53,7 @@ The latest build is shared on Baidu Netdisk:
 
 | Item | Value |
 |---|---|
+| Current version | **v1.3.0** |
 | Link | <https://pan.baidu.com/s/1V3FcoPrWUt3bGQZ-vHqBZg?pwd=1234> |
 | Access code | `1234` |
 
@@ -59,11 +65,11 @@ Unzip the downloaded package and double-click `LSP_PlayerKit.exe`. Python and No
 
 The window has three parts:
 
-- **Left rail**: Pearl Cannon, Border Cannon, Material Converter, Puppet Logistics, a “Coming soon” placeholder, and About.
+- **Left rail**: Pearl Cannon, Border Cannon, Material Converter, Puppet Logistics, Slime Chunk Finder, a “Coming soon” placeholder, and About.
 - **Top bar**: active tool name and description, language (English / 简体中文 / 繁體中文), light/dark theme, and the settings gear.
 - **Workspace**: parameters on the left, results on the right.
 
-Shortcuts: `Ctrl+1 / Ctrl+2 / Ctrl+3 / Ctrl+4` switch tools, `Ctrl+,` opens settings. Window size and the maximized state are remembered.
+Shortcuts: `Ctrl+1` … `Ctrl+5` switch tools, `Ctrl+,` opens settings. Window size and the maximized state are remembered.
 
 ![Main window](../README_img/en/1-main.png)
 
@@ -324,35 +330,87 @@ Click a row to restore the commands that run saved into the command preview abov
 
 ---
 
-## 6. Settings
+## 6. Slime chunk finder
+
+Find the AFK spot whose **24–128 block spawn ring** contains the most slime-chunk area. Mobs do not spawn within 24 blocks and despawn beyond 128 blocks.
+
+### 6.1 Usage
+
+1. Enter the **world seed** (a number, or text such as `hello`, hashed like Java). The field remembers recent seeds — focus it or click `▾` to pick one from history;
+2. Enter the **center X / Z** and the **search radius** in blocks; `30,000,000` is roughly the whole world;
+3. Adjust the **ring inner / outer** radii (default 24 / 128) and the **simulation distance** (server `simulation-distance`; chunks beyond it do not tick);
+4. Pick a **search mode**: `Auto` (exact up to 16,777,216 chunks, otherwise sampled), `Exact`, or `Sampled`;
+5. Press **Find**.
+
+Results are sorted by slime-chunk block area inside the ring, with **non-maximum suppression** (8 chunks by default) so the list contains distinct spots instead of one hotspot.
+
+![Slime chunk finder](../README_img/en/17-slime-finder.png)
+
+### 6.2 Map and results
+
+- Selecting a result centres the map on it and zooms to about 40×40 chunks: green cells are slime chunks, orange is the score heatmap, dashed circles are the 24 / 128 rings;
+- The top and left edges show coordinate ticks whose step adapts to zoom (16 / 32 / 64 … blocks); hovering shows both the chunk and the block coordinate;
+- **Perimeter** draws a default 21×21-chunk square around the selected result with the ring kept as centred as possible, and lists the four corner coordinates; the size can be changed in settings or in the card, and a size too small to cover the ring triggers a warning;
+- Results live in a sidebar on the right; click a row to locate and zoom. The **Results** button collapses/expands the sidebar so the map can use the full width;
+- Opening or closing the **Perimeter** panel, collapsing/expanding the results sidebar and resizing the window keep the current zoom and centre instead of snapping back to the whole map;
+- Click a marker on the map to switch results; wheel to zoom, drag to pan, hover to see chunk coordinates and slime state; **Locate** re-focuses the selected result;
+- The table lists rank, AFK X / Z, score (blocks²) and coverage, with a copy button per row;
+- **Export CSV** includes the seed, area and coordinates so a search can be reproduced.
+
+![Perimeter recommendation](../README_img/en/18-slime-perimeter.png)
+
+### 6.3 Large areas and performance
+
+- **Exact scan**: vectorised slime bitmap plus FFT convolution; 1000×1000 chunks (~1M) takes about a second, 10000×10000 chunks (100M, 160k×160k blocks) about 10 seconds on the development machine;
+- The exact scan defaults to 4,096×4,096 chunks (16.8M) and can be raised in **Settings → Slime Chunk Finder** (up to 8192×8192). Larger areas switch to **sampled search**: 50,000 random points, hill climbing and per-chunk refinement, reported with the percentile among random samples;
+- The full 60M×60M world is 1.4×10¹³ chunks and cannot be enumerated. Sampled search returns the best point within the budget, not a proven global optimum; narrow the area for an exact scan.
+
+### 6.4 Settings
+
+| Setting | Description |
+|---|---|
+| World seed | Default `0` |
+| Center X / Z | Default `-32` / `-8`; used as the initial center when the tool opens |
+| Exact scan limit | Default 16,777,216 chunks (4096×4096), adjustable 65,536–67,108,864; larger areas switch to sampled search |
+| Perimeter size | 21×21 chunks by default; must cover the spawn ring, otherwise you get a warning |
+| Ring inner / outer | 24 / 128 blocks by default |
+| Simulation distance | Server simulation-distance, default 8; the outer radius becomes `min(outer, distance × 16)` |
+| Result count | 100 by default, up to 500 |
+| Result spacing | NMS spacing, 8 chunks by default |
+| Search mode | Auto / Exact / Sampled |
+| Samples | 50,000 by default |
+
+---
+
+## 7. Settings
 
 Click the gear (or press `Ctrl+,`) to open the settings drawer. The **Tool options** tab follows the active tool; the sections below describe it per app. Saved values apply immediately, and Reset / Import live at the bottom.
 
-### 6.1 Pearl Cannon
+### 7.1 Pearl Cannon
 
 Default muzzle and target coordinates, maximum TNT, per-array cap, firing mode and the rounding parameters for flat/arc shots. Full list: [2.2 Settings](#22-settings).
 
 ![Pearl Cannon settings](../README_img/en/11-settings-pearl.png)
 
-### 6.2 Border Cannon
+### 7.2 Border Cannon
 
 Default muzzle and target coordinates, expected flight time, direction reference and legacy-compatibility mode. Full list: [3.2 Settings](#32-settings).
 
 ![Border Cannon settings](../README_img/en/12-settings-border.png)
 
-### 6.3 Material Converter
+### 7.3 Material Converter
 
 Maximum stack size, shulker slots, export folder and export format. Full list: [4.8 Settings](#48-settings).
 
 ![Material Converter settings](../README_img/en/13-settings-material.png)
 
-### 6.4 Puppet Logistics
+### 7.4 Puppet Logistics
 
 Boxes per bot, bots per batch and the bot name template, plus the run options (allow auto input, command interval, countdown, input mode, lag retries, clipboard restore). Full list: [5.5 Settings](#55-settings).
 
 ![Puppet Logistics settings](../README_img/en/14-settings-puppet.png)
 
-### 6.5 Data & storage
+### 7.5 Data & storage
 
 The **Data & storage** tab shows or changes the data folder, opens it, and exports/imports a settings bundle.
 
@@ -363,7 +421,7 @@ The **Data & storage** tab shows or changes the data folder, opens it, and expor
 
 ![Data & storage](../README_img/en/4-storage.png)
 
-### 6.6 About
+### 7.6 About
 
 The **About** tab shows the version, stack, privacy note and license, with shortcuts to the manual (the Chinese/English README as PDF) and the GitHub repository.
 
@@ -371,7 +429,7 @@ The **About** tab shows the version, stack, privacy note and license, with short
 
 ---
 
-## 7. Data and storage
+## 8. Data and storage
 
 Settings live in `data` next to the executable by default. **Copy the whole folder to migrate.**
 
@@ -410,7 +468,7 @@ Other behaviour:
 
 ---
 
-## 8. Calculation notes and limitations
+## 9. Calculation notes and limitations
 
 - Flat/arc rounding and enumeration order for the pearl cannon, and the three-TNT solve for the border cannon, are line-by-line compatible with the legacy implementations; golden snapshot tests keep the numbers identical.
 - Some flight times produce negative TNT for the border cannon (the legacy app had no solution either); the table then reports “No valid configuration for this flight time”.
@@ -420,6 +478,8 @@ Other behaviour:
 - Puppet Logistics only spawns and kills fake players; loading and transport are done by the in-game station. A stopped run may leave bots behind — use “Build cleanup” next to the ledger.
 - Execution is Windows-only and only targets windows of class `GLFW30` / `LWJGL` (launcher windows are never touched). Administrator rights depend on how Minecraft is launched.
 - Whether auto input is allowed is up to the server's rules; check before using it.
+- The Slime Chunk Finder supports **Java Edition** only. The score estimates slime-chunk block area inside the ring and does not model terrain, caves or spawn-layer height; real rates also depend on simulation distance, light and farm design.
+- A full 60M×60M world cannot be enumerated: above 4,096×4,096 chunks the app switches to sampled search, which returns the best result within the budget rather than a proven global optimum.
 
 ---
 
