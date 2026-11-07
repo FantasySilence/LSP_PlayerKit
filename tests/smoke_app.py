@@ -7,6 +7,9 @@
 # @Descript: 界面冒烟脚本             #
 # =================================== #
 # 用法：.venv\\Scripts\\python.exe tests\\smoke_app.py
+# 这是手动冒烟脚本，不是 pytest 用例（文件名不以 test_ 开头，不会被收集）：
+# 真正启动 pywebview 窗口，依次点击五个工具并打印 DOM 观察值，供人工比对。
+# 需要桌面环境；运行：.venv\Scripts\python.exe tests\smoke_app.py
 
 from __future__ import annotations
 
@@ -31,6 +34,11 @@ from lspkit.tools import build_registry  # noqa: E402
 
 
 def main() -> None:
+    """启动临时数据目录 + 本地 Web 服务，创建窗口并执行 check 脚本.
+
+    所有文件对话框都被下面的假实现替换，因此无需人工选择文件；
+    check 结束后销毁窗口，webview.start 返回，脚本退出。
+    """
     data_dir = Path(tempfile.mkdtemp(prefix="lspkit-smoke-"))
     runtime = Runtime(
         location=Location(path=data_dir, source="default", writable=True),
@@ -41,6 +49,7 @@ def main() -> None:
     url = _start_server(web_dir())
 
     # 用假文件替换原生对话框，便于无人工干预地验证导入流程
+    # 4766/1219/1158 只是冒烟演示数据，与测试快照无关，也不做数值断言。
     material_text = [
         '"Item","Total","Missing","Available"\n'
         '"白色染色玻璃",4766,4766,0\n'
@@ -55,6 +64,7 @@ def main() -> None:
     saved = {}
 
     def fake_save(self, filename, content, directory=""):
+        """替换 Api.file_save_text：记录文件名/内容长度/目录，返回假路径，不弹保存框."""
         saved["name"] = filename
         saved["size"] = len(content)
         saved["directory"] = directory
@@ -66,13 +76,20 @@ def main() -> None:
     runtime.window = window
 
     def report(target, key: str, script: str) -> None:
+        """在页面里执行一段 JS 并把结果以 JSON 打印；JS 出错只打印错误，不中断流程."""
         try:
             print(f"{key}:", json.dumps(target.evaluate_js(script), ensure_ascii=False))
         except Exception as exc:  # noqa: BLE001
             print(f"{key}: EVAL ERROR {type(exc).__name__}: {exc}")
 
     def check(target) -> None:
+        """等首屏加载后依次操作五个工具，打印各阶段的 DOM 观察值.
+
+        这里没有断言：输出是给人看的冒烟结果。任何 JS 异常都会被捕获并打印
+        SMOKE ERROR，最后销毁窗口。
+        """
         time.sleep(4)
+        # 等 WebView 完成加载与首屏渲染；具体时长依赖机器，冒烟脚本容忍固定等待。
         try:
             report(
                 target,
@@ -84,6 +101,7 @@ def main() -> None:
             )
 
             target.evaluate_js("document.querySelector('.actions .primary').click()")
+            # 点「计算」按钮，等结果表格与解码面板渲染。
             time.sleep(2.5)
             report(
                 target,
@@ -137,6 +155,7 @@ def main() -> None:
             trace_info["selectedTicks"] = selected_ticks
             trace_info["match"] = str(trace_info.get("targetTick")) == str(selected_ticks)
             print("PEARL_TRACE:", json.dumps(trace_info, ensure_ascii=False))
+            # ------ 边境炮 ------ #
 
             target.evaluate_js("document.querySelectorAll('.rail-item')[1].click()")
             time.sleep(1.5)
@@ -168,6 +187,7 @@ def main() -> None:
                 "({toast: (document.querySelector('.toast.success') || {}).innerText || '',"
                 " buttons: document.querySelectorAll('.secondary-actions .btn').length})",
             )
+            # ------ 材料换算 ------ #
 
             target.evaluate_js("document.querySelectorAll('.rail-item')[2].click()")
             time.sleep(1.2)
@@ -377,6 +397,7 @@ def main() -> None:
                 "({toast: (document.querySelector('.toast.error') || {}).innerText || '',"
                 " rows: document.querySelectorAll('.data-table tbody tr').length})",
             )
+            # ------ 设置与关于 ------ #
 
             target.evaluate_js("document.querySelectorAll('.rail-item')[0].click()")
             time.sleep(1.2)

@@ -7,6 +7,10 @@
 # @Descript: 对外动作                 #
 # =================================== #
 
+# 本文件是工具与前端之间的边界：只做参数校验、忽略名单拆分、结果装配，
+# 具体换算与装箱都下沉到 core/（纯函数，便于单独测试）。
+# 出错一律抛 AppError(code, 用户可读消息, 细节)，由 api 层转成前端 toast。
+
 from __future__ import annotations
 
 from lspkit.errors import AppError
@@ -16,10 +20,16 @@ from .core.convert import convert
 from .core.packing import plan
 from .core.parse import parse_materials, parse_sources
 
+# ------ 动作处理 ------ #
+
 
 def convert_action(payload: dict, ctx) -> dict:
     """
     解析材料清单并换算成潜影盒 / 组 / 个.
+
+    动作 id 为 convert，返回值中 items 直接作为结果表格的行：
+    每行含 name（材料名）、stack（堆叠数）、count（需求数量）、
+    shulkers（整盒数）/ stacks（整组数）/ items（零散个数）。
     """
 
     parsed, settings = _read(payload, ctx)
@@ -42,6 +52,9 @@ def convert_action(payload: dict, ctx) -> dict:
 def pack_action(payload: dict, ctx) -> dict:
     """
     给出用最少潜影盒装完所有材料的装填方案.
+
+    与 convert_action 共享解析和拆分流程，差别只在最后调用 core.packing.plan：
+    它把每种材料的数量折成占用格数，再逐盒装满，得到盒数最少的分盒方案。
     """
 
     parsed, settings = _read(payload, ctx)
@@ -61,9 +74,15 @@ def pack_action(payload: dict, ctx) -> dict:
     return result
 
 
+# ------ 参数处理 ------ #
+
+
 def _split(parsed: dict, payload: dict, settings: dict, overrides: dict) -> tuple[list, list]:
     """
     按「忽略」名单拆成待换算条目与被忽略条目.
+
+    被忽略的材料不参与换算 / 装箱，但仍按原始数量回传给界面单独展示，
+    因此这里顺手算好它的堆叠数，保证 ignoredItems 的字段与结果行一致。
     """
 
     ignore = set(_ignore_names(payload))
@@ -81,6 +100,10 @@ def _split(parsed: dict, payload: dict, settings: dict, overrides: dict) -> tupl
 
 
 def _ignore_names(payload: dict) -> list:
+    """
+    取出忽略名单（材料显示名的列表），未提供时视为不忽略任何材料.
+    """
+
     raw = payload.get("ignore")
     if raw is None:
         return []
@@ -92,6 +115,10 @@ def _ignore_names(payload: dict) -> list:
 def _read(payload: dict, ctx) -> tuple[dict, dict]:
     """
     校验请求、解析清单并取回本工具设置.
+
+    sources（多份清单，可含已解析好的 litematic 条目）优先于 text（单份文本）；
+    locale 决定材料显示名语言。解析结果为空时直接报 NO_ENTRIES，
+    由前端提示「导入的是投影模组导出的材料清单」。
     """
 
     raw_sources = payload.get("sources")
@@ -116,6 +143,8 @@ def _read(payload: dict, ctx) -> tuple[dict, dict]:
 def _normalize_text(text) -> str:
     """
     校验单份清单的文本.
+
+    长度上限是字符数（不是字节数）：中英混排时按字符计更接近用户直觉。
     """
 
     if not isinstance(text, str) or not text.strip():
@@ -130,6 +159,11 @@ def _normalize_text(text) -> str:
 def _normalize_sources(raw) -> list[dict]:
     """
     校验多份清单的请求体，长度上限按总和计算.
+
+    每个来源二选一：
+    - entries：已解析好的条目（.litematic 由 api 层解析后直接传来），跳过长度统计；
+    - text：原始文本（CSV / 纯文本），按字符计入总长度。
+    空条目与空白文本会被静默跳过，全部无效时才报错。
     """
 
     if not isinstance(raw, list) or not raw:
@@ -167,6 +201,9 @@ def _normalize_sources(raw) -> list[dict]:
 def _stack_overrides(payload: dict) -> dict:
     """
     取出「按材料指定堆叠数」的表，只接受 64 / 16 / 1.
+
+    键是材料的显示名（与清单里的名字完全一致才生效），值是堆叠数（个/组）。
+    这里刻意保持字符串，不在边界处转 int，转换统一由 core 里的 int() 完成。
     """
 
     raw = payload.get("stacks")

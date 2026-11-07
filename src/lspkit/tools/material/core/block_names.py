@@ -14,6 +14,17 @@
 覆盖 A–S 段）与官方语言文件（Minecraft 26.3 的 zh_cn / zh_tw / en_us，
 键 block.minecraft.<id> / item.minecraft.<id>）合并；Wiki 有而官方未收录的
 Wiki 表共 1018 条，官方未收录的方块以 Wiki 名补齐，英文名缺失时退回 ID。
+
+结构：
+    BLOCK_NAMES[语言][方块 ID] = 名称，语言键为 "zh_cn" / "zh_tw" / "en"；
+    ITEM_NAMES[语言][物品 ID] = 名称，只收录方块名表里没有的物品（桶、种子等）。
+    键是去掉 minecraft: 命名空间后的 ID（如 "stone"），值是该语言的显示名，
+    界面直接展示这些值；查表顺序见 core/localize.py 的 item_name。
+
+本文件由脚本整批生成，请勿手工修改条目：三语条目是抓取 + 合并的产物，
+手改会在下次重新生成时被覆盖，也容易让三种语言的键集合对不上。
+需要更新名称时，按上面记录的来源重新抓取 Wiki 与官方语言文件、整份重新生成
+（生成脚本没有入库，仓库里只保留这份产物）。
 """
 
 BLOCK_NAMES = {

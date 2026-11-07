@@ -2,8 +2,10 @@
 import { t } from '../../platform/i18n'
 import type { PackingEntry } from '../../platform/types'
 
+// 单条装填明细：材料名、整组数量、零散数量与占用槽位
 const props = defineProps<{ entry: PackingEntry }>()
 
+// 数量文案：整组与零散兼有时显示「a 组 + b 个」
 function entryText(entry: PackingEntry): string {
   if (entry.stacks && entry.items) {
     return t('material.pack.mixed', { stacks: entry.stacks, items: entry.items })
@@ -14,6 +16,7 @@ function entryText(entry: PackingEntry): string {
 </script>
 
 <template>
+  <!-- 区块：单条装填明细（材料名 / 数量文案 / 槽位数） -->
   <div class="pack-entry">
     <span class="entry-name" :title="props.entry.name">{{ props.entry.name }}</span>
     <span class="entry-qty mono">{{ entryText(props.entry) }}</span>
@@ -22,6 +25,7 @@ function entryText(entry: PackingEntry): string {
 </template>
 
 <style scoped>
+/* 区块：单条装填明细 */
 .pack-entry {
   display: flex;
   align-items: baseline;
@@ -29,6 +33,7 @@ function entryText(entry: PackingEntry): string {
   min-width: 0;
 }
 
+/* 材料名最多两行，超出省略 */
 .entry-name {
   flex: 1;
   min-width: 0;
@@ -56,6 +61,7 @@ function entryText(entry: PackingEntry): string {
   white-space: nowrap;
 }
 
+/* 槽位数前的间隔点 */
 .entry-slots::before {
   content: '·';
   margin-right: 4px;

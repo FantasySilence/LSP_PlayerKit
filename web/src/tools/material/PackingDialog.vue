@@ -10,6 +10,8 @@ import PackEntry from './PackEntry.vue'
 const props = defineProps<{ result: PackingResult }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
+// 盒组数据：后端已把连续满装且只放单一材料的盒子合并成一组；
+// 旧数据没有 groups 时按单盒补齐
 const groups = computed<PackingGroup[]>(() => {
   if (props.result.groups?.length) return props.result.groups
   return props.result.boxes.map((box) => ({
@@ -23,16 +25,20 @@ const groups = computed<PackingGroup[]>(() => {
   }))
 })
 
+// 视图模式：盒数多于 12 时默认用列表视图，否则用卡片视图
 const listMode = ref(groups.value.length > 12)
 const active = ref(0)
+// 列表视图当前选中的盒组
 const current = computed(() => groups.value[active.value] ?? groups.value[0])
 
 // ------ 拼图式排布：细网格 + 按实测高度跨行 ------ #
+// 卡片视图容器；ROW_UNIT 为网格行高，lastWidth 记录上次宽度用于跳过无意义重排
 const grid = ref<HTMLElement | null>(null)
 const ROW_UNIT = 4
 let frame = 0
 let lastWidth = 0
 
+// 逐卡测量高度并换算成跨行数：先复位跨行再测量，避免上一次结果影响这次
 function layoutCards(): void {
   const element = grid.value
   if (!element || listMode.value) return
@@ -50,6 +56,7 @@ function layoutCards(): void {
   lastWidth = element.clientWidth
 }
 
+// 用 requestAnimationFrame 合并多次重排请求，避免同一帧里反复测量
 function scheduleLayout(): void {
   window.cancelAnimationFrame(frame)
   frame = window.requestAnimationFrame(() => {
@@ -58,31 +65,37 @@ function scheduleLayout(): void {
   })
 }
 
+// 只有宽度变化才重排（高度变化不影响跨行数）
 function onResize(): void {
   const element = grid.value
   if (!element || element.clientWidth === lastWidth) return
   scheduleLayout()
 }
 
+// 视图切换或结果变化后，等 DOM 更新完再重排
 watch(listMode, () => nextTick(scheduleLayout))
 watch(() => props.result, () => nextTick(scheduleLayout))
 
+// 盒号文案：合并组显示盒号区间，单盒显示盒号
 function groupLabel(group: PackingGroup): string {
   return group.merged
     ? t('material.pack.boxRange', { from: group.from, to: group.to })
     : t('material.pack.box', { n: group.from })
 }
 
+// 用量文案：合并组显示 组数 × 每盒容量，单盒显示 已用 / 容量
 function groupMeta(group: PackingGroup): string {
   return group.merged
     ? `${group.boxes} × ${group.capacity}/${group.capacity}`
     : `${group.used}/${group.capacity}`
 }
 
+// 整组的总槽位数（合并组要乘盒数）
 function groupSlots(group: PackingGroup): number {
   return group.capacity * group.boxes
 }
 
+// 单条装填数量文案：整组与零散兼有 / 只有整组 / 只有零散
 function entryText(entry: PackingEntry): string {
   if (entry.stacks && entry.items) {
     return t('material.pack.mixed', { stacks: entry.stacks, items: entry.items })
@@ -91,10 +104,12 @@ function entryText(entry: PackingEntry): string {
   return t('material.pack.items', { n: entry.items })
 }
 
+// 进度条百分比，超过容量按 100% 截断
 function percent(used: number, capacity: number): string {
   return `${Math.min(100, Math.round((used / Math.max(1, capacity)) * 100))}%`
 }
 
+// 生成可复制的纯文本方案：一行汇总 + 每盒（组）的明细
 function planText(): string {
   const totals = props.result.totals
   const lines = [
@@ -116,6 +131,7 @@ function planText(): string {
   return lines.join('\n')
 }
 
+// 复制方案文本：优先浏览器剪贴板，失败时退回后端接口
 async function copyPlan() {
   const text = planText()
   try {
@@ -135,6 +151,7 @@ async function copyPlan() {
   }
 }
 
+// Esc 关闭弹窗
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.stopPropagation()
@@ -142,12 +159,14 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
+// 挂载后首次排布，并监听窗口缩放
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', onResize)
   nextTick(() => scheduleLayout())
 })
 
+// 卸载时移除监听并取消待执行的重排
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
@@ -156,8 +175,10 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- 区块：装填方案弹窗（点击遮罩或按 Esc 关闭） -->
   <div class="packing-backdrop" @click.self="emit('close')">
     <div class="packing" role="dialog" aria-modal="true">
+      <!-- 标题、汇总与卡片 / 列表视图切换 -->
       <header class="packing-head">
         <div class="packing-titles">
           <div class="packing-title">{{ t('material.pack.title') }}</div>
@@ -182,9 +203,12 @@ onUnmounted(() => {
         </div>
       </header>
 
+      <!-- 操作提示 -->
       <div class="packing-hint">{{ t('material.pack.hint') }}</div>
 
+      <!-- 卡片视图：一盒一张卡片，合并组显示盒号区间 -->
       <div v-if="!listMode" ref="grid" class="packing-grid">
+        <!-- 单盒卡片：盒号、用量、进度条与装填明细 -->
         <article
           v-for="group in groups"
           :key="`${group.from}-${group.to}`"
@@ -198,15 +222,18 @@ onUnmounted(() => {
               <span class="box-kinds">· {{ group.entries.length }} {{ t('material.unit.kinds') }}</span>
             </span>
           </div>
+          <!-- 装填进度条：满盒用品牌色，未满用强调色 -->
           <div class="box-bar">
             <span :style="{ width: percent(group.used, groupSlots(group)) }" />
           </div>
           <div class="box-list">
             <PackEntry v-for="entry in group.entries" :key="entry.name" :entry="entry" />
           </div>
+          <!-- 合并组标记：显示该组合并了多少盒 -->
           <div v-if="group.merged" class="box-merge-tag">
             {{ t('material.pack.mergedTag', { n: group.boxes }) }}
           </div>
+          <!-- 明细超过 7 条时提示可滚动 -->
           <div v-else-if="group.entries.length > 7" class="box-more">
             <span>▾</span>
             <span>{{ t('material.pack.scrollHint') }}</span>
@@ -214,7 +241,9 @@ onUnmounted(() => {
         </article>
       </div>
 
+      <!-- 列表视图：左侧盒号索引 + 右侧明细 -->
       <div v-else class="packing-split">
+        <!-- 盒号索引：点击切换右侧明细 -->
         <div class="box-index">
           <button
             v-for="(group, index) in groups"
@@ -227,6 +256,7 @@ onUnmounted(() => {
             <span class="box-index-meta mono">{{ groupMeta(group) }}</span>
           </button>
         </div>
+        <!-- 选中盒组的明细 -->
         <div class="box-detail">
           <div class="detail-head">
             <span class="box-no">{{ groupLabel(current) }}</span>
@@ -241,6 +271,7 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- 底部提示与复制 / 关闭 -->
       <footer class="packing-foot">
         <span class="muted packing-tip">{{ t('material.pack.tip') }}</span>
         <button class="btn" @click="copyPlan">{{ t('material.pack.copy') }}</button>
@@ -251,6 +282,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 区块：全屏遮罩 */
 .packing-backdrop {
   position: fixed;
   inset: 0;
@@ -261,6 +293,7 @@ onUnmounted(() => {
   background: var(--scrim);
 }
 
+/* 弹窗容器 */
 .packing {
   width: min(1120px, 94vw);
   max-height: 92vh;
@@ -273,6 +306,7 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* 区块：标题栏 */
 .packing-head {
   display: flex;
   align-items: flex-start;
@@ -305,6 +339,7 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
+/* 区块：卡片视图网格（4px 细行，卡片按实测高度跨行） */
 .packing-grid {
   flex: 0 1 auto;
   min-height: 0;
@@ -319,6 +354,7 @@ onUnmounted(() => {
   padding: 0 18px 14px;
 }
 
+/* 单盒卡片 */
 .box-card {
   display: flex;
   flex-direction: column;
@@ -351,6 +387,7 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
+/* 装填进度条 */
 .box-bar {
   height: 3px;
   margin: 6px 10px 8px;
@@ -439,6 +476,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+/* 视图切换与关闭按钮 */
 .packing-tools {
   display: flex;
   align-items: center;
@@ -469,6 +507,7 @@ onUnmounted(() => {
   color: var(--brand);
 }
 
+/* 区块：列表视图（左侧索引 + 右侧明细） */
 .packing-split {
   flex: 1;
   min-height: 0;
@@ -477,6 +516,7 @@ onUnmounted(() => {
   border-top: 1px solid var(--line);
 }
 
+/* 盒号索引 */
 .box-index {
   display: flex;
   flex-direction: column;
@@ -542,6 +582,7 @@ onUnmounted(() => {
   color: var(--muted);
 }
 
+/* 选中盒组的明细 */
 .box-detail {
   display: flex;
   flex-direction: column;
@@ -570,6 +611,7 @@ onUnmounted(() => {
   padding-top: 8px;
 }
 
+/* 区块：底部操作栏 */
 .packing-foot {
   display: flex;
   align-items: center;

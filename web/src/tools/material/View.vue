@@ -6,6 +6,7 @@ import { locale, t } from '../../platform/i18n'
 import { clone, getSettings, loadSettings, revision, saveSettings } from '../../platform/settings'
 import { notify, notifyError } from '../../platform/toast'
 import type {
+  MaterialIgnored,
   MaterialResult,
   MaterialRow,
   MaterialTotals,
@@ -17,14 +18,17 @@ import PackingDialog from './PackingDialog.vue'
 
 const props = defineProps<{ tool: ToolDef }>()
 
+// 可选的堆叠数：64（整组）/ 16 / 1（不可堆叠）
 const STACK_OPTIONS = ['64', '16', '1']
 
+// 清单条目：材料名与数量（后端已解析好时直接给这个结构）
 interface SourceEntry {
   id?: string
   name: string
   count: number
 }
 
+// 清单元信息：区域数 / 方块数 / 被过滤掉的方块数等，用于清单悬停提示
 interface SourceMeta {
   regions?: number
   blocks?: number
@@ -35,6 +39,7 @@ interface SourceMeta {
   layout?: string
 }
 
+// 已导入的清单：text 为原始 CSV 文本，entries 为后端解析结果，二者取其一
 interface SourceFile {
   id: string
   name: string
@@ -44,64 +49,88 @@ interface SourceFile {
   enabled: boolean
 }
 
+// 已导入的清单列表；sourceStats 按清单名记录换算后的种类数与物品数
 const sources = ref<SourceFile[]>([])
 const sourceStats = ref<Record<string, { kinds: number; items: number }>>({})
+// 清单 id 自增序号，只用于列表 key 与删除定位
 let sourceSeq = 0
 
+// 勾选参与换算的清单（多份清单会合并统计）
 const activeSources = computed(() => sources.value.filter((source) => source.enabled))
+// 换算结果：材料行、汇总、警告、被跳过的行数与是否被截断
 const items = ref<MaterialRow[]>([])
 const totals = ref<MaterialTotals | null>(null)
 const warnings = ref<{ line: number; text: string }[]>([])
 const skipped = ref(0)
 const truncated = ref(false)
+// 默认堆叠数与潜影盒槽位数（决定每盒容量与所需盒数）
 const stackSize = ref('64')
 const shulkerSlots = ref(27)
 const busy = ref(false)
+// 装填方案结果与弹窗开关；packingBusy 为装填请求进行中
 const packing = ref<PackingResult | null>(null)
 const packingOpen = ref(false)
 const packingBusy = ref(false)
+// 左侧列表多选（按材料名保存），batchStack 为批量设置用的堆叠数
 const selected = ref<Set<string>>(new Set())
 const batchStack = ref('64')
+// 按材料名覆盖堆叠数，只记录手动指定过的材料
 const stacks = ref<Record<string, string>>({})
+// 被忽略的材料名；ignoredItems 为后端返回的忽略项（含数量）
 const ignored = ref<Set<string>>(new Set())
 const ignoredItems = ref<MaterialIgnored[]>([])
+// 导出文件名与目录；默认导出目录由存储目录推导
 const exportName = ref('')
 const exportDir = ref('')
 const defaultExportDir = ref('')
 
+// 每潜影盒容量 = 堆叠数 × 槽位数
 const perBox = computed(() => Number(stackSize.value) * shulkerSlots.value)
+// 结果表按堆叠数筛选：all / 64 / 16 / 1
 const stackFilter = ref('all')
+// 结果表排序状态（仅数量列可排序）
 const sortState = ref<{ key: string; dir: 'asc' | 'desc' }>({ key: 'count', dir: 'desc' })
+// 左侧列表的数量排序方向，与结果表排序相互独立
 const listSort = ref<'asc' | 'desc'>('desc')
+// 搜索词，以及建议下拉是否展开
 const search = ref('')
 const searchFocused = ref(false)
 
+// 结果表数据：按堆叠数筛选后的材料行
 const filteredItems = computed(() =>
   stackFilter.value === 'all'
     ? items.value
     : items.value.filter((item) => String(item.stack) === stackFilter.value),
 )
+// 左侧列表数据：材料与被忽略项合并后按数量排序
 const orderedItems = computed(() => {
   const sign = listSort.value === 'asc' ? 1 : -1
   return [...items.value, ...ignoredItems.value].sort((a, b) => (a.count - b.count) * sign)
 })
+// 再按搜索词过滤（不区分大小写）得到可见行
 const visibleItems = computed(() => {
   const query = search.value.trim().toLowerCase()
   if (!query) return orderedItems.value
   return orderedItems.value.filter((item) => item.name.toLowerCase().includes(query))
 })
+// 搜索建议最多 8 条
 const suggestions = computed(() => (search.value.trim() ? visibleItems.value.slice(0, 8) : []))
+// 列表最多渲染 120 行，其余用隐藏数量提示（hiddenKinds）
 const preview = computed(() => visibleItems.value.slice(0, 120))
 const hiddenKinds = computed(() => Math.max(0, visibleItems.value.length - preview.value.length))
+// 是否已有换算结果，用于禁用换算 / 导出等按钮
 const hasItems = computed(() => items.value.length > 0)
+// 可见行是否全选（全选按钮按可见行判断）
 const allSelected = computed(
   () => visibleItems.value.length > 0 && selected.value.size === visibleItems.value.length,
 )
+// 选中项是否已被全部忽略，决定批量按钮显示忽略还是恢复
 const allIgnoredSelected = computed(
   () =>
     selected.value.size > 0 &&
     [...selected.value].every((name) => ignored.value.has(name)),
 )
+// 默认导出文件名：单清单用清单名，多清单用 merged，统一加 _converted 后缀
 const defaultExportName = computed(() => {
   const active = activeSources.value
   if (!active.length) return 'materials.csv'
@@ -109,29 +138,36 @@ const defaultExportName = computed(() => {
   const base = stem.replace(/\.[^.]+$/, '').trim()
   return base ? `${base}_converted.csv` : 'materials.csv'
 })
+// 警告只展示前 3 条，其余用省略号概括
 const currentWarnings = computed(() => warnings.value.slice(0, 3))
 
+// 是否在忽略名单中
 function isIgnored(name: string): boolean {
   return ignored.value.has(name)
 }
 
+// 是否手动指定过堆叠数（列表里的堆叠数字会高亮）
 function isCustom(name: string): boolean {
   return stacks.value[name] !== undefined
 }
 
+// 结果表排序变化只记录状态（导出时按数量沿用该方向）
 function onSort(payload: { key: string; dir: 'asc' | 'desc' }) {
   sortState.value = payload
 }
 
+// 翻转左侧列表的数量排序方向
 function toggleListSort() {
   listSort.value = listSort.value === 'desc' ? 'asc' : 'desc'
 }
 
+// 导出前按结果表的排序方向（数量）重排，和表格里的顺序保持一致
 function sortForExport(rows: MaterialRow[]): MaterialRow[] {
   const sign = sortState.value.dir === 'asc' ? 1 : -1
   return [...rows].sort((a, b) => (a.count - b.count) * sign)
 }
 
+// 勾选 / 取消单个材料；用新 Set 覆盖以触发响应式更新
 function toggle(name: string) {
   const next = new Set(selected.value)
   if (next.has(name)) next.delete(name)
@@ -139,18 +175,21 @@ function toggle(name: string) {
   selected.value = next
 }
 
+// 全选 / 全不选（只作用于可见行）
 function toggleAll() {
   selected.value = allSelected.value
     ? new Set()
     : new Set(visibleItems.value.map((item) => item.name))
 }
 
+// 选中搜索建议：回填搜索词并收起建议
 function chooseSuggestion(name?: string) {
   if (!name) return
   search.value = name
   searchFocused.value = false
 }
 
+// 批量忽略 / 恢复：按选中项是否全部已忽略切换，随后立即重算并清空选择
 async function toggleIgnore() {
   if (!selected.value.size) return
   const next = new Set(ignored.value)
@@ -164,6 +203,7 @@ async function toggleIgnore() {
   selected.value = new Set()
 }
 
+// 批量设置堆叠数：写入覆盖表后立即重算并清空选择
 async function applyBatch() {
   if (!selected.value.size) return
   const next = { ...stacks.value }
@@ -175,6 +215,7 @@ async function applyBatch() {
   selected.value = new Set()
 }
 
+// 恢复单个忽略项并重算
 async function restoreOne(name: string) {
   const next = new Set(ignored.value)
   next.delete(name)
@@ -182,12 +223,14 @@ async function restoreOne(name: string) {
   await convert()
 }
 
+// 清空忽略名单并重算
 async function restoreAll() {
   if (!ignored.value.size) return
   ignored.value = new Set()
   await convert()
 }
 
+// 设置被外部修改时同步堆叠数、槽位与导出目录（未保存过堆叠数则保持不动）
 function syncFromSettings() {
   const data = getSettings(props.tool.id)
   if (!data?.stackSize) return
@@ -196,6 +239,7 @@ function syncFromSettings() {
   exportDir.value = String(data.exportDir ?? '')
 }
 
+// 切换默认堆叠数：写回设置，已有清单时立即重算
 async function setStack(value: string) {
   if (value === stackSize.value) return
   stackSize.value = value
@@ -209,6 +253,7 @@ async function setStack(value: string) {
   }
 }
 
+// 换算主流程：把启用的清单（原始文本或已解析条目）连同堆叠覆盖与忽略名单交给后端
 async function convert() {
   const active = activeSources.value
   if (!active.length) {
@@ -247,11 +292,13 @@ async function convert() {
   }
 }
 
+// 语言切换后重算：材料名由后端按语言翻译，只有已解析条目才需要刷新
 watch(locale, async () => {
   if (!sources.value.some((source) => source.entries?.some((entry) => entry.id))) return
   if (activeSources.value.length) await convert()
 })
 
+// 清空全部换算结果（清单删光或全部取消勾选时）
 function clearResult() {
   items.value = []
   totals.value = null
@@ -263,6 +310,7 @@ function clearResult() {
   selected.value = new Set()
 }
 
+// 装填方案：参数与换算一致，后端给出最省潜影盒的装法，结果放进弹窗
 async function pack() {
   const active = activeSources.value
   if (!active.length) {
@@ -290,6 +338,7 @@ async function pack() {
   }
 }
 
+// 导入清单：由后端弹文件框并解析投影模组导出的材料清单 CSV，批量加入后自动换算
 async function readFiles() {
   try {
     const result = await invoke<{
@@ -332,6 +381,7 @@ async function readFiles() {
   }
 }
 
+// 清单悬停提示：名称 + 区域数 / 方块数 / 被过滤掉的方块数
 function sourceTitle(source: SourceFile): string {
   const meta = source.meta
   if (!meta?.regions) return source.name
@@ -347,23 +397,27 @@ function sourceTitle(source: SourceFile): string {
   return `${source.name}\n${lines.join(' · ')}`
 }
 
+// 勾选 / 取消清单后重算；没有启用清单时清空结果
 async function toggleSource(source: SourceFile) {
   source.enabled = !source.enabled
   if (activeSources.value.length) await convert()
   else clearResult()
 }
 
+// 移除清单后重算；没有启用清单时清空结果
 async function removeSource(source: SourceFile) {
   sources.value = sources.value.filter((item) => item.id !== source.id)
   if (activeSources.value.length) await convert()
   else clearResult()
 }
 
+// CSV 单元格转义：含逗号、引号或换行时加引号并转义内部引号
 function csvCell(value: unknown): string {
   const cell = String(value ?? '')
   return /[",\r\n]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell
 }
 
+// 导出 CSV：表头 + 数据（按当前排序）+ 合计行；文件名或目录留空时用默认值
 async function exportCsv() {
   if (!filteredItems.value.length || !totals.value) {
     notify('info', t('material.msg.exportEmpty'))
@@ -412,6 +466,7 @@ async function exportCsv() {
   }
 }
 
+// 把导出目录写回设置
 async function saveExportDir() {
   try {
     const data = clone(getSettings(props.tool.id))
@@ -423,6 +478,7 @@ async function saveExportDir() {
   }
 }
 
+// 选择导出目录并立即保存
 async function pickExportDir() {
   try {
     const path = await invoke<string | null>('storage_pick_dir')
@@ -434,6 +490,7 @@ async function pickExportDir() {
   }
 }
 
+// 默认导出目录：存储目录下的 output 子目录，取不到时留空
 async function loadDefaultExportDir() {
   try {
     const info = await invoke<{ path?: string }>('storage_info')
@@ -444,6 +501,7 @@ async function loadDefaultExportDir() {
   }
 }
 
+// 设置变化（如设置页修改）时重新同步本页参数
 watch(
   () => revision[props.tool.id],
   () => {
@@ -451,6 +509,7 @@ watch(
   },
 )
 
+// 首次加载：默认堆叠数、槽位数与导出目录
 onMounted(async () => {
   try {
     const data = await loadSettings(props.tool.id)
@@ -466,6 +525,7 @@ onMounted(async () => {
 
 <template>
   <div class="workbench">
+    <!-- 区块：导入清单与参数 -->
     <section class="panel">
       <div class="panel-head">
         <span>{{ t('material.panel.input') }}</span>
@@ -473,6 +533,7 @@ onMounted(async () => {
       </div>
 
       <div class="panel-body">
+        <!-- 导入清单按钮与已导入数量 -->
         <div class="import-card">
           <button class="btn primary block import-btn" :disabled="busy" @click="readFiles">
             {{ t('material.action.import') }}
@@ -485,6 +546,7 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 已导入清单：勾选参与换算 / 悬停查看元信息 / 可移除 -->
         <div v-if="sources.length" class="source-list">
           <label
             v-for="source in sources"
@@ -508,6 +570,7 @@ onMounted(async () => {
           </label>
         </div>
 
+        <!-- 默认堆叠数：切换后写回设置并立即重算 -->
         <div class="field">
           <label class="field-label">
             <span>{{ t('material.field.defaultStack') }}</span>
@@ -525,6 +588,7 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 材料列表：搜索建议、多选、批量堆叠 / 忽略 -->
         <div class="field material-list-field">
           <label class="field-label">
             <span>{{ t('material.list.title') }}</span>
@@ -537,6 +601,7 @@ onMounted(async () => {
             </span>
           </label>
 
+          <!-- 搜索框与建议下拉（回车选第一条，Esc 清空） -->
           <div class="search">
             <input
               v-model="search"
@@ -564,6 +629,7 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- 列表：全选、已选数量、按数量排序 -->
           <div class="list">
             <div class="list-head">
               <label class="pick">
@@ -582,6 +648,7 @@ onMounted(async () => {
               </button>
             </div>
 
+            <!-- 每行：勾选、材料名、忽略标记、堆叠数、数量 -->
             <label
               v-for="item in preview"
               :key="item.name"
@@ -612,6 +679,7 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- 批量操作：堆叠数 + 应用 / 忽略（已忽略时为恢复） -->
           <div class="batch">
             <select v-model="batchStack" class="input batch-select" :disabled="!hasItems">
               <option v-for="option in STACK_OPTIONS" :key="option" :value="option">
@@ -627,6 +695,7 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 忽略名单：可单个恢复或全部恢复 -->
         <div class="ignored-panel">
           <div class="ignored-head">
             <span>{{ t('material.ignored.title', { n: ignoredItems.length }) }}</span>
@@ -655,6 +724,7 @@ onMounted(async () => {
           <div v-else class="ignored-empty">{{ t('material.ignored.empty') }}</div>
         </div>
 
+        <!-- 换算 / 装填方案 / 导出 -->
         <div class="actions">
           <button class="btn primary" :disabled="busy || !hasItems" @click="convert">
             {{ busy ? t('status.calculating') : t('material.action.convert') }}
@@ -667,6 +737,7 @@ onMounted(async () => {
           </button>
         </div>
 
+        <!-- 导出文件名与目录：留空时用默认值 -->
         <div class="export-block">
           <div class="export-row">
             <span class="export-label">{{ t('material.field.exportName') }}</span>
@@ -692,9 +763,11 @@ onMounted(async () => {
       </div>
     </section>
 
+    <!-- 区块：换算结果 -->
     <section class="panel">
       <div class="panel-head">
         <span>{{ t('material.panel.result') }}</span>
+        <!-- 表头信息：截断提醒、堆叠筛选、筛选后行数 -->
         <span class="head-meta">
           <span v-if="truncated" class="badge warn">{{ t('material.msg.truncated') }}</span>
           <span class="muted">{{ t('material.col.stack') }}</span>
@@ -715,6 +788,7 @@ onMounted(async () => {
       </div>
 
       <div class="result-body">
+        <!-- 结果表：仅数量可排序，空结果用 material.empty 文案 -->
         <DataTable
           :columns="tool.columns"
           :rows="filteredItems"
@@ -726,6 +800,7 @@ onMounted(async () => {
         />
       </div>
 
+      <!-- 汇总统计与被跳过行的警告 -->
       <footer v-if="totals" class="summary">
         <div class="stats">
           <div class="stat">
@@ -761,10 +836,12 @@ onMounted(async () => {
     </section>
   </div>
 
+  <!-- 装填方案弹窗 -->
   <PackingDialog v-if="packingOpen && packing" :result="packing" @close="packingOpen = false" />
 </template>
 
 <style scoped>
+/* 区块：整体布局（左侧参数 380px + 右侧结果） */
 .workbench {
   height: 100%;
   display: grid;
@@ -774,6 +851,7 @@ onMounted(async () => {
   min-width: 0;
 }
 
+/* 窄屏改为上下两栏并允许纵向滚动 */
 @media (max-width: 1080px) {
   .workbench {
     grid-template-columns: 1fr;
@@ -782,6 +860,7 @@ onMounted(async () => {
   }
 }
 
+/* 区块：导入清单卡片 */
 .import-card {
   padding: 12px;
   border: 1px dashed var(--line-strong);
@@ -806,6 +885,7 @@ onMounted(async () => {
   color: var(--brand);
 }
 
+/* 区块：已导入清单列表（超长可滚动） */
 .source-list {
   display: flex;
   flex-direction: column;
@@ -870,6 +950,7 @@ onMounted(async () => {
   color: var(--text);
 }
 
+/* 区块：材料列表 */
 .list {
   max-height: 120px;
   overflow: auto;
@@ -900,6 +981,7 @@ onMounted(async () => {
   max-height: none;
 }
 
+/* 区块：搜索框与建议下拉 */
 .search {
   position: relative;
   margin-bottom: 8px;
@@ -931,6 +1013,7 @@ onMounted(async () => {
   color: var(--text);
 }
 
+/* 建议下拉：浮在列表上方 */
 .suggestions {
   position: absolute;
   z-index: 8;
@@ -979,6 +1062,7 @@ onMounted(async () => {
   font-size: 11px;
 }
 
+/* 列表表头：吸顶 */
 .list-head {
   position: sticky;
   top: 0;
@@ -1008,6 +1092,7 @@ onMounted(async () => {
   cursor: pointer;
 }
 
+/* 列表行：选中与忽略两种状态 */
 .list-row {
   display: flex;
   align-items: center;
@@ -1039,6 +1124,7 @@ onMounted(async () => {
   font-size: 12px;
 }
 
+/* 堆叠数标签：手动指定过的材料高亮 */
 .stack-chip {
   min-width: 30px;
   padding: 1px 6px;
@@ -1070,6 +1156,7 @@ onMounted(async () => {
   color: var(--muted);
 }
 
+/* 忽略标记 */
 .ignored-tag {
   flex: 0 0 auto;
   padding: 0 6px;
@@ -1079,6 +1166,7 @@ onMounted(async () => {
   font-size: 10px;
 }
 
+/* 区块：导出文件名与目录 */
 .export-block {
   display: flex;
   flex-direction: column;
@@ -1111,6 +1199,7 @@ onMounted(async () => {
   font-size: 12px;
 }
 
+/* 区块：忽略名单 */
 .ignored-panel {
   margin-top: 12px;
   border: 1px solid var(--line);
@@ -1184,6 +1273,7 @@ onMounted(async () => {
   font-size: 11px;
 }
 
+/* 区块：批量堆叠 / 忽略 */
 .batch {
   display: flex;
   gap: 8px;
@@ -1263,6 +1353,7 @@ onMounted(async () => {
   text-align: center;
 }
 
+/* 区块：默认堆叠数分段按钮 */
 .segmented {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1288,6 +1379,7 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+/* 区块：换算 / 装填 / 导出按钮 */
 .actions {
   display: flex;
   gap: 8px;
@@ -1317,6 +1409,7 @@ onMounted(async () => {
   margin-bottom: 10px;
 }
 
+/* 区块：结果表容器 */
 .result-body {
   flex: 1;
   min-height: 0;
@@ -1329,12 +1422,14 @@ onMounted(async () => {
   gap: 8px;
 }
 
+/* 区块：汇总统计与警告 */
 .summary {
   border-top: 1px solid var(--line);
   padding: 10px 12px;
   background: var(--surface-2);
 }
 
+/* 五项统计卡片 */
 .stats {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1374,6 +1469,7 @@ onMounted(async () => {
   color: var(--brand);
 }
 
+/* 被跳过行的警告：只展示前几条 */
 .warn-line {
   display: flex;
   align-items: center;

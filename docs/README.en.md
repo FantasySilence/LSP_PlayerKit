@@ -337,9 +337,9 @@ Find the AFK spot whose **24–128 block spawn ring** contains the most slime-ch
 ### 6.1 Usage
 
 1. Enter the **world seed** (a number, or text such as `hello`, hashed like Java). The field remembers recent seeds — focus it or click `▾` to pick one from history;
-2. Enter the **center X / Z** and the **search radius** in blocks; `30,000,000` is roughly the whole world;
+2. Enter the **center X / Z** (block coordinates) and the **search radius** in chunks; `4,096` chunks covers 8192×8192 chunks, and `1,875,000` chunks is roughly the whole world;
 3. Adjust the **ring inner / outer** radii (default 24 / 128) and the **simulation distance** (server `simulation-distance`; chunks beyond it do not tick);
-4. Pick a **search mode**: `Auto` (exact up to 16,777,216 chunks, otherwise sampled), `Exact`, or `Sampled`;
+4. Pick a **search mode**: `Auto` (unlimited by default, so always exact; only areas above a limit you set in Settings are sampled), `Exact`, or `Sampled`;
 5. Press **Find**.
 
 Results are sorted by slime-chunk block area inside the ring, with **non-maximum suppression** (8 chunks by default) so the list contains distinct spots instead of one hotspot.
@@ -349,7 +349,11 @@ Results are sorted by slime-chunk block area inside the ring, with **non-maximum
 ### 6.2 Map and results
 
 - Selecting a result centres the map on it and zooms to about 40×40 chunks: green cells are slime chunks, orange is the score heatmap, dashed circles are the 24 / 128 rings;
+- **A search first shows an overview** covering the whole search area, with the search centre marked by an orange ring; beyond 1024 chunks it samples at “N chunks per cell” (shown in the legend — e.g. 8 chunks per cell at a 4,096-chunk radius). Click a result row for a ~192-chunk detail view, and **Whole area** returns to the overview;
 - The top and left edges show coordinate ticks whose step adapts to zoom (16 / 32 / 64 … blocks); hovering shows both the chunk and the block coordinate;
+- **Coordinate view** on the left takes any X / Z: **Show point** reloads the map centred on it with an edge length of **2 × search radius** (same size as the search area, up to 1024 chunks; larger radii show 1024 chunks) and zooms to about 40×40 chunks for a clear look (**Fit** shows the whole area); it marks the point with a blue “Viewed point” and also draws the 24 / 128 ring and the default perimeter square around it (with the corner coordinates), and works without any search results;
+
+![Coordinate view](../README_img/en/20-slime-probe.png)
 - **Perimeter** draws a default 21×21-chunk square around the selected result with the ring kept as centred as possible, and lists the four corner coordinates; the size can be changed in settings or in the card, and a size too small to cover the ring triggers a warning;
 - Results live in a sidebar on the right; click a row to locate and zoom. The **Results** button collapses/expands the sidebar so the map can use the full width;
 - Opening or closing the **Perimeter** panel, collapsing/expanding the results sidebar and resizing the window keep the current zoom and centre instead of snapping back to the whole map;
@@ -362,8 +366,8 @@ Results are sorted by slime-chunk block area inside the ring, with **non-maximum
 ### 6.3 Large areas and performance
 
 - **Exact scan**: vectorised slime bitmap plus FFT convolution; 1000×1000 chunks (~1M) takes about a second, 10000×10000 chunks (100M, 160k×160k blocks) about 10 seconds on the development machine;
-- The exact scan defaults to 4,096×4,096 chunks (16.8M) and can be raised in **Settings → Slime Chunk Finder** (up to 8192×8192). Larger areas switch to **sampled search**: 50,000 random points, hill climbing and per-chunk refinement, reported with the percentile among random samples;
-- The full 60M×60M world is 1.4×10¹³ chunks and cannot be enumerated. Sampled search returns the best point within the budget, not a proven global optimum; narrow the area for an exact scan.
+- **The exact scan has no limit by default**: any area is scanned exactly (in the background, stoppable). To cap run time, set a chunk limit in **Settings → Slime Chunk Finder** (0 = unlimited); larger areas then switch to **sampled search** (50,000 random points, hill climbing and per-chunk refinement, with the percentile among random samples). 8192×8192 takes about 9 seconds here. Larger areas switch to **sampled search**: 50,000 random points, hill climbing and per-chunk refinement, reported with the percentile among random samples;
+- The full 60M×60M world is 1.4×10¹³ chunks and cannot be enumerated; without a limit an exact scan simply takes longer (background, stoppable). Set a limit to switch to sampled search automatically. Sampled search returns the best point within the budget, not a proven global optimum; narrow the area for an exact scan.
 
 ### 6.4 Settings
 
@@ -371,7 +375,8 @@ Results are sorted by slime-chunk block area inside the ring, with **non-maximum
 |---|---|
 | World seed | Default `0` |
 | Center X / Z | Default `-32` / `-8`; used as the initial center when the tool opens |
-| Exact scan limit | Default 16,777,216 chunks (4096×4096), adjustable 65,536–67,108,864; larger areas switch to sampled search |
+| Search radius | Default `4096` chunks (±4096 chunks = 8192×8192 chunks), minimum 1 |
+| Exact scan limit | Default `0` (unlimited); set 1–67,108,864 chunks and larger areas switch to sampled search |
 | Perimeter size | 21×21 chunks by default; must cover the spawn ring, otherwise you get a warning |
 | Ring inner / outer | 24 / 128 blocks by default |
 | Simulation distance | Server simulation-distance, default 8; the outer radius becomes `min(outer, distance × 16)` |
@@ -485,7 +490,7 @@ Other behaviour:
 - Execution is Windows-only and only targets windows of class `GLFW30` / `LWJGL` (launcher windows are never touched). Administrator rights depend on how Minecraft is launched.
 - Whether auto input is allowed is up to the server's rules; check before using it.
 - The Slime Chunk Finder supports **Java Edition** only. The score estimates slime-chunk block area inside the ring and does not model terrain, caves or spawn-layer height; real rates also depend on simulation distance, light and farm design.
-- A full 60M×60M world cannot be enumerated: above 4,096×4,096 chunks the app switches to sampled search, which returns the best result within the budget rather than a proven global optimum.
+- A full 60M×60M world cannot be enumerated: without a limit the exact scan just takes longer; set a limit to switch to sampled search, which returns the best result within the budget rather than a proven global optimum.
 
 ---
 

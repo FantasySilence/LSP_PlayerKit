@@ -9,6 +9,7 @@ import type { ColumnDef, PearlRow, ToolDef } from '../../platform/types'
 import CompassRose from '../../ui/CompassRose.vue'
 import DataTable from '../../ui/DataTable.vue'
 
+// 轨迹采样点：t 为游戏刻，x / y / z 为该刻的珍珠坐标
 interface TracePoint {
   t: number
   x: number
@@ -18,32 +19,44 @@ interface TracePoint {
 
 const props = defineProps<{ tool: ToolDef }>()
 
+// 输入：炮口与目标的水平坐标（高度由后端按平射 / 抛射模式决定）
 const originX = ref<number | string>(0)
 const originZ = ref<number | string>(0)
 const targetX = ref<number | string>(0)
 const targetZ = ref<number | string>(0)
+// 参与搜索的 TNT 总数量上限
 const maxTnt = ref<number | string>(3640)
+// 发射模式：flat 平射 / eject 抛射；ejectionAvailable 表示炮架是否支持抛射
 const mode = ref<'flat' | 'eject'>('flat')
 const ejectionAvailable = ref(true)
 
+// 计算结果行（每种 TNT 组合一行）与当前选中行下标
 const rows = ref<PearlRow[]>([])
 const selected = ref<number | null>(null)
+// 炮口朝向：默认由后端算出；在罗盘上手动选择后 manualDirection 置为 true
 const direction = ref<string | null>(null)
 const manualDirection = ref(false)
+// 结果区当前标签：table 结果表 / trace 轨迹表
 const tab = ref<'table' | 'trace'>('table')
+// 轨迹点与落地刻（landingTick 为 null 表示没有落地位置）
 const points = ref<TracePoint[]>([])
 const landingTick = ref<number | null>(null)
 // 手动模拟的轨迹从第一行开始看（右侧结果仍高亮落地刻）
 const traceAtTop = ref(false)
+// 请求进行中标记：按钮禁用与文案切换用
 const busy = ref(false)
+// 每次计算后自增，作为结果表的 key 强制重建（复位默认排序与滚动位置）
 const calcVersion = ref(0)
+// 选中行的 TNT 拆解结果（蓝 / 红各拆成若干份），null 表示尚未解码
 const decode = ref<{ blueText: string; redText: string; blue: number[]; red: number[] } | null>(null)
 
 // ------ 手动模拟：不依赖结果表，直接按蓝 / 红 TNT 数量走弹道 ------
+// 手动输入的蓝 / 红 TNT 数量；manualSummary 为模拟后的落地或滞空提示
 const manualBlue = ref<number | string>(0)
 const manualRed = ref<number | string>(0)
 const manualSummary = ref('')
 
+// 轨迹表列：刻 + 三轴坐标（坐标保留 3 位小数）
 const traceColumns: ColumnDef[] = [
   { key: 't', nameKey: 'pearl.trace.col.t', type: 'int' },
   { key: 'x', nameKey: 'pearl.trace.col.x', type: 'float', digits: 3 },
@@ -51,23 +64,28 @@ const traceColumns: ColumnDef[] = [
   { key: 'z', nameKey: 'pearl.trace.col.z', type: 'float', digits: 3 },
 ]
 
+// DataTable 需要索引签名，这里只做类型转换，不复制数据
 const pointRows = computed(() => points.value as unknown as Record<string, any>[])
 
+// 落地刻在轨迹点中的下标，用于表格高亮；找不到对应刻时为 null
 const landingIndex = computed(() => {
   if (landingTick.value === null) return null
   const index = points.value.findIndex((point) => point.t === landingTick.value)
   return index >= 0 ? index : null
 })
 
+// 当前选中行；没有选中行时无法生成轨迹（canSimulate）
 const current = computed(() => (selected.value === null ? null : rows.value[selected.value] ?? null))
 const canSimulate = computed(() => current.value !== null)
 
+// 输入框绑定的是 number | string，统一转成有限数字，否则抛错交给调用方提示
 function toNumber(value: number | string, label: string): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) throw new Error(`${label} 不是有效数字`)
   return parsed
 }
 
+// 读取该工具的默认设置并回填输入框；抛射模式只在炮架支持时才启用
 async function applySettings() {
   const data = await loadSettings(props.tool.id)
   originX.value = data.originX
@@ -79,6 +97,7 @@ async function applySettings() {
   mode.value = data.fireMode === 'eject' && ejectionAvailable.value ? 'eject' : 'flat'
 }
 
+// 保存为默认：基于已保存的设置做浅拷贝，只覆盖本页填写过的字段，其余字段保持原值
 async function saveAsDefault() {
   try {
     const data = clone(getSettings(props.tool.id))
@@ -95,6 +114,7 @@ async function saveAsDefault() {
   }
 }
 
+// 计算：把炮口 / 目标 / 最大 TNT / 模式交给后端，返回方向与候选结果行
 async function calculate() {
   busy.value = true
   try {
@@ -117,6 +137,7 @@ async function calculate() {
     tab.value = 'table'
     decode.value = null
     manualSummary.value = ''
+    // 有结果时默认选中误差最小的行（error 最小），没有结果就提示
     if (result.rows.length) {
       let best = 0
       result.rows.forEach((row, index) => {
@@ -134,6 +155,7 @@ async function calculate() {
   }
 }
 
+// 选中行：记录下标并请求该行的 TNT 拆解，供底部解码条显示
 async function selectRow(index: number) {
   selected.value = index
   const row = rows.value[index]
@@ -152,11 +174,13 @@ async function selectRow(index: number) {
   }
 }
 
+// 罗盘手动选向：直接覆盖后端给出的方向，并标记为手动
 function selectDirection(value: 'north' | 'east' | 'south' | 'west') {
   direction.value = value
   manualDirection.value = true
 }
 
+// 按选中行的 TNT 组合生成轨迹：ticks 多加 50 以保证能看到落地，并高亮落地刻
 async function simulate() {
   const row = current.value
   if (!row) return
@@ -181,6 +205,7 @@ async function simulate() {
   }
 }
 
+// 手动模拟：不依赖结果行，按手填蓝 / 红 TNT 与方向推算，返回落地信息或滞空提示
 async function simulateManual() {
   if (!direction.value) {
     notify('info', t('pearl.manual.needDirection'))
@@ -224,12 +249,14 @@ async function simulateManual() {
   }
 }
 
+// 把拆解出的份数拼成「a + b = 总数」，只有一份时直接显示总数
 function formatParts(parts: number[]): string {
   const total = parts.reduce((sum, part) => sum + part, 0)
   if (parts.length <= 1) return String(total)
   return `${parts.join(' + ')} = ${total}`
 }
 
+// 复制到剪贴板：优先浏览器 API，不可用或失败时退回后端剪贴板接口
 async function copy(text: string) {
   try {
     if (navigator.clipboard?.writeText) {
@@ -248,6 +275,7 @@ async function copy(text: string) {
   }
 }
 
+// 首次挂载时读取默认设置
 onMounted(async () => {
   try {
     await applySettings()
@@ -259,12 +287,14 @@ onMounted(async () => {
 
 <template>
   <div class="workbench">
+    <!-- 区块：输入参数（炮口 / 目标 / 最大 TNT / 模式 / 方向） -->
     <section class="panel">
       <div class="panel-head">
         <span>{{ t('pearl.panel.input') }}</span>
         <span class="badge">{{ mode === 'flat' ? t('pearl.mode.flat') : t('pearl.mode.eject') }}</span>
       </div>
       <div class="panel-body">
+        <!-- 炮口 X / Z：步进为 1/16 格 -->
         <div class="field-row">
           <div class="field">
             <label class="field-label">{{ t('pearl.field.originX') }}</label>
@@ -276,6 +306,7 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 目标 X / Z -->
         <div class="field-row">
           <div class="field">
             <label class="field-label">{{ t('pearl.field.targetX') }}</label>
@@ -287,6 +318,7 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 参与搜索的最大 TNT 总数 -->
         <div class="field">
           <label class="field-label">
             <span>{{ t('pearl.field.maxTnt') }}</span>
@@ -295,6 +327,7 @@ onMounted(async () => {
           <input v-model.number="maxTnt" class="input mono" type="number" min="1" step="10" />
         </div>
 
+        <!-- 平射 / 抛射切换；炮架不支持抛射时按钮禁用 -->
         <div class="field">
           <label class="field-label">{{ t('pearl.field.mode') }}</label>
           <div class="segmented">
@@ -312,6 +345,7 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- 方向罗盘：手动点选后标记为手动，模拟时优先采用 -->
         <div class="field direction-field">
           <label class="field-label">
             <span>{{ t('pearl.field.direction') }}</span>
@@ -320,6 +354,7 @@ onMounted(async () => {
           <CompassRose :direction="direction" :manual="manualDirection" @select="selectDirection" />
         </div>
 
+        <!-- 手动模拟：直接给蓝 / 红 TNT 与方向，不依赖结果表 -->
         <div class="manual-block">
           <div class="manual-head">
             <span class="manual-title">{{ t('pearl.manual.title') }}</span>
@@ -352,6 +387,7 @@ onMounted(async () => {
           <div v-if="manualSummary" class="manual-summary mono">{{ manualSummary }}</div>
         </div>
 
+        <!-- 计算与生成轨迹 -->
         <div class="actions">
           <button class="btn primary" :disabled="busy" @click="calculate">
             {{ busy ? t('status.calculating') : t('pearl.action.calculate') }}
@@ -361,6 +397,7 @@ onMounted(async () => {
           </button>
         </div>
 
+        <!-- 保存为默认 / 应用默认值 -->
         <div class="secondary-actions">
           <button class="btn sm" @click="saveAsDefault">
             {{ t('action.saveAsDefault') }}
@@ -372,6 +409,7 @@ onMounted(async () => {
       </div>
     </section>
 
+    <!-- 区块：结果与轨迹（结果表 / 轨迹表两个标签页） -->
     <section class="panel">
       <div class="panel-head">
         <div class="tabs">
@@ -389,6 +427,7 @@ onMounted(async () => {
       </div>
 
       <div class="result-body">
+        <!-- 结果表：仅误差与刻可排序，默认按刻升序 -->
         <DataTable
           v-if="tab === 'table'"
           :key="calcVersion"
@@ -399,6 +438,7 @@ onMounted(async () => {
           :default-sort="{ key: 'ticks', dir: 'asc' }"
           @select="selectRow"
         />
+        <!-- 轨迹表：到达行高亮；手动模拟时从第 1 行开始看，不自动滚动 -->
         <div v-else class="trace-panel">
           <DataTable
             :columns="traceColumns"
@@ -410,6 +450,7 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- 解码条：蓝 / 红 TNT 的拆解份数，可分别复制 -->
       <footer v-if="decode" class="decode-bar">
         <div class="decode-line">
           <span class="badge brand">{{ t('pearl.decode.blue') }}</span>
@@ -431,6 +472,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 区块：整体布局（左侧参数 360px + 右侧结果） */
 .workbench {
   height: 100%;
   display: grid;
@@ -440,6 +482,7 @@ onMounted(async () => {
   min-width: 0;
 }
 
+/* 窄屏改为上下两栏并允许纵向滚动 */
 @media (max-width: 1080px) {
   .workbench {
     grid-template-columns: 1fr;
@@ -448,6 +491,7 @@ onMounted(async () => {
   }
 }
 
+/* 区块：分段按钮（平射 / 抛射） */
 .segmented {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -477,6 +521,7 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
+/* 区块：方向罗盘与手动模拟面板 */
 .direction-field {
   align-items: center;
 }
