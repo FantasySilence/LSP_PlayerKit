@@ -286,6 +286,8 @@ watch(
                 :step="stepFor(field)"
                 @input="onNumber(field, $event)"
               />
+
+              <div v-if="field.hint" class="hint">{{ t(field.hint) }}</div>
             </div>
           </section>
 

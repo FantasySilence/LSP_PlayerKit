@@ -35,7 +35,7 @@ def test_app_state_lists_tools(api):
     result = api.app_state()
     assert result["ok"] is True
     ids = [tool["id"] for tool in result["data"]["tools"]]
-    assert ids == ["pearl", "border", "material", "puppet"]
+    assert ids == ["pearl", "border", "material", "puppet", "slime"]
 
 
 def test_pearl_calculate_and_decode(api):

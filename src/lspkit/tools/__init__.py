@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from lspkit.platform.registry import Registry
 
-from . import border, material, pearl, puppet
+from . import border, material, pearl, puppet, slime
 
 
 def build_registry() -> Registry:
@@ -20,4 +20,5 @@ def build_registry() -> Registry:
     registry.register(border.MANIFEST, border.HANDLERS, border.LEGACY)
     registry.register(material.MANIFEST, material.HANDLERS, material.LEGACY)
     registry.register(puppet.MANIFEST, puppet.HANDLERS, puppet.LEGACY)
+    registry.register(slime.MANIFEST, slime.HANDLERS, slime.LEGACY)
     return registry

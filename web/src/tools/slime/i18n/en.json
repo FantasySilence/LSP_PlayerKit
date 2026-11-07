@@ -1,0 +1,98 @@
+{
+  "slime.name": "Slime Chunk Finder",
+  "slime.description": "Find AFK spots with the most slime-chunk area inside the spawn ring",
+
+  "slime.panel.params": "Parameters",
+  "slime.panel.map": "Chunk map",
+  "slime.panel.results": "Results",
+
+  "slime.field.seed": "World seed",
+  "slime.field.centerX": "Center X",
+  "slime.field.centerZ": "Center Z",
+  "slime.field.radius": "Search radius",
+  "slime.field.ringInner": "Ring inner",
+  "slime.field.ringOuter": "Ring outer",
+  "slime.field.simDistance": "Simulation distance",
+  "slime.field.mode": "Search mode",
+  "slime.field.topN": "Result count",
+  "slime.field.nms": "Result spacing",
+  "slime.field.samples": "Samples",
+  "slime.field.exactLimit": "Exact scan limit",
+  "slime.field.perimeter": "Perimeter size",
+
+  "slime.history.title": "Recent seeds",
+  "slime.history.empty": "No matching seeds",
+  "slime.history.clear": "Clear history",
+
+  "slime.unit.block": "blocks",
+  "slime.unit.chunk": "chunks",
+
+  "slime.mode.auto": "Auto",
+  "slime.mode.exact": "Exact scan",
+  "slime.mode.sample": "Sampled search",
+
+  "slime.action.start": "Find",
+  "slime.action.stop": "Stop",
+  "slime.action.export": "Export CSV",
+  "slime.action.copy": "Copy",
+  "slime.action.heat": "Heatmap",
+  "slime.action.locate": "Locate",
+  "slime.action.results": "Results",
+  "slime.action.perimeter": "Perimeter",
+  "slime.action.reset": "Fit",
+
+  "slime.state.idle": "Ready",
+  "slime.state.running": "Searching",
+  "slime.state.done": "Done",
+  "slime.state.aborted": "Stopped",
+  "slime.state.error": "Error",
+
+  "slime.progress.scanning": "{done} / {total} chunks",
+  "slime.progress.elapsed": "{seconds}s",
+  "slime.progress.best": "Best {score} / ring {area} blocks²",
+  "slime.progress.percentile": "Above {pct}% of random samples",
+
+  "slime.msg.notNumber": "\"{label}\" is not a number",
+  "slime.msg.badRadius": "Search radius must be greater than 0",
+  "slime.msg.outOfWorld": "Search area is outside the world border (±30,000,000)",
+  "slime.msg.started": "Search started",
+  "slime.msg.stopping": "Stopping…",
+  "slime.msg.done": "Done: {n} results in {seconds}s",
+  "slime.msg.empty": "No results",
+  "slime.msg.aborted": "Stopped",
+  "slime.msg.noResults": "No results to export",
+  "slime.msg.exported": "Results exported",
+  "slime.msg.perimeterNoSelection": "Select a result first",
+  "slime.msg.perimeterTooSmall": "Perimeter size {size} is too small; at least {min}×{min} chunks are needed to cover the {outer}-block ring",
+
+  "slime.empty.map": "The chunk map appears here after a search",
+  "slime.empty.results": "No results yet",
+
+  "slime.legend.slime": "Slime chunk",
+  "slime.legend.normal": "Normal chunk",
+  "slime.legend.marker": "AFK spot",
+  "slime.legend.ring": "24 / 128 ring",
+
+  "slime.hover.chunk": "Chunk",
+  "slime.hover.block": "Block",
+
+  "slime.perimeter.title": "Perimeter {size}×{size}",
+  "slime.perimeter.label": "Perimeter {size}×{size}",
+  "slime.perimeter.chunks": "Chunks",
+  "slime.perimeter.nw": "NW",
+  "slime.perimeter.ne": "NE",
+  "slime.perimeter.sw": "SW",
+  "slime.perimeter.se": "SE",
+
+  "slime.hint.seed": "Numeric or text seed (e.g. hello); text is hashed like Java",
+  "slime.hint.radius": "Blocks around the center; 30,000,000 is roughly the whole world",
+  "slime.hint.exactLimit": "Beyond the exact scan limit (16,777,216 chunks by default) the app switches to sampled search (not guaranteed global optimum)",
+  "slime.hint.exactLimitSetting": "Maximum chunks allowed for an exact scan; default 16,777,216 (4096×4096). Larger values cover more area but take longer",
+  "slime.hint.perimeter": "Default 21×21 chunks; it must cover the spawn ring, otherwise you'll get a warning",
+
+  "slime.col.chunk": "Chunk",
+  "slime.col.score": "Score",
+  "slime.col.coverage": "Coverage",
+
+  "slime.settings.query": "Search parameters"
+}

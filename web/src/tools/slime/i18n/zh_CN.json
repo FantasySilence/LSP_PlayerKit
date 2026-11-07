@@ -1,0 +1,98 @@
+{
+  "slime.name": "史莱姆区块查找器",
+  "slime.description": "按世界种子寻找刷怪圆环内史莱姆区块最多的挂机点",
+
+  "slime.panel.params": "查找参数",
+  "slime.panel.map": "区块地图",
+  "slime.panel.results": "结果",
+
+  "slime.field.seed": "世界种子",
+  "slime.field.centerX": "中心 X",
+  "slime.field.centerZ": "中心 Z",
+  "slime.field.radius": "搜索半径",
+  "slime.field.ringInner": "圆环内径",
+  "slime.field.ringOuter": "圆环外径",
+  "slime.field.simDistance": "模拟距离",
+  "slime.field.mode": "搜索模式",
+  "slime.field.topN": "结果数量",
+  "slime.field.nms": "结果间距",
+  "slime.field.samples": "采样次数",
+  "slime.field.exactLimit": "精确扫描上限",
+  "slime.field.perimeter": "空置域边长",
+
+  "slime.history.title": "最近使用",
+  "slime.history.empty": "没有匹配的历史种子",
+  "slime.history.clear": "清空历史",
+
+  "slime.unit.block": "格",
+  "slime.unit.chunk": "区块",
+
+  "slime.mode.auto": "自动",
+  "slime.mode.exact": "精确扫描",
+  "slime.mode.sample": "采样搜索",
+
+  "slime.action.start": "开始查找",
+  "slime.action.stop": "停止",
+  "slime.action.export": "导出 CSV",
+  "slime.action.copy": "复制",
+  "slime.action.heat": "热力图",
+  "slime.action.locate": "定位",
+  "slime.action.results": "结果",
+  "slime.action.perimeter": "空置域推荐",
+  "slime.action.reset": "复位",
+
+  "slime.state.idle": "就绪",
+  "slime.state.running": "查找中",
+  "slime.state.done": "已完成",
+  "slime.state.aborted": "已停止",
+  "slime.state.error": "出错",
+
+  "slime.progress.scanning": "已扫 {done} / {total} 区块",
+  "slime.progress.elapsed": "用时 {seconds}s",
+  "slime.progress.best": "当前最高 {score} / 环面积 {area} 格²",
+  "slime.progress.percentile": "超过 {pct}% 的随机采样点",
+
+  "slime.msg.notNumber": "「{label}」不是有效数字",
+  "slime.msg.badRadius": "搜索半径必须大于 0",
+  "slime.msg.outOfWorld": "搜索范围超出世界边界（±30,000,000）",
+  "slime.msg.started": "已开始查找",
+  "slime.msg.stopping": "正在停止…",
+  "slime.msg.done": "完成：{n} 个结果，用时 {seconds}s",
+  "slime.msg.empty": "没有找到结果",
+  "slime.msg.aborted": "已停止",
+  "slime.msg.noResults": "还没有可导出的结果",
+  "slime.msg.exported": "结果已导出",
+  "slime.msg.perimeterNoSelection": "请先在结果里选择一个挂机点",
+  "slime.msg.perimeterTooSmall": "空置域边长 {size} 区块太小，至少需要 {min}×{min} 区块才能覆盖 {outer} 格圆环",
+
+  "slime.empty.map": "开始查找后在这里显示区块地图",
+  "slime.empty.results": "还没有结果",
+
+  "slime.legend.slime": "史莱姆区块",
+  "slime.legend.normal": "普通区块",
+  "slime.legend.marker": "挂机点",
+  "slime.legend.ring": "24 / 128 圆环",
+
+  "slime.hover.chunk": "区块",
+  "slime.hover.block": "方块",
+
+  "slime.perimeter.title": "空置域 {size}×{size}",
+  "slime.perimeter.label": "空置域 {size}×{size}",
+  "slime.perimeter.chunks": "区块范围",
+  "slime.perimeter.nw": "西北",
+  "slime.perimeter.ne": "东北",
+  "slime.perimeter.sw": "西南",
+  "slime.perimeter.se": "东南",
+
+  "slime.hint.seed": "支持数字或文本种子（如 hello），文本按 Java 规则换算",
+  "slime.hint.radius": "以中心为原点向四周扩展的格数；30,000,000 约等于全图",
+  "slime.hint.exactLimit": "超过「精确扫描上限」（默认 16,777,216 区块）会自动改为采样搜索（不保证全局最优）",
+  "slime.hint.exactLimitSetting": "允许精确扫描的最大区块数；默认 16,777,216（4096×4096），调大能覆盖更大范围但更慢",
+  "slime.hint.perimeter": "默认 21×21 区块；必须覆盖刷怪圆环，太小时会提示",
+
+  "slime.col.chunk": "区块",
+  "slime.col.score": "得分",
+  "slime.col.coverage": "覆盖率",
+
+  "slime.settings.query": "查找参数"
+}

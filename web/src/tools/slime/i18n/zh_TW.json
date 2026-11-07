@@ -1,0 +1,98 @@
+{
+  "slime.name": "史萊姆區塊尋找器",
+  "slime.description": "依世界種子尋找刷怪圓環內史萊姆區塊最多的掛機點",
+
+  "slime.panel.params": "尋找參數",
+  "slime.panel.map": "區塊地圖",
+  "slime.panel.results": "結果",
+
+  "slime.field.seed": "世界種子",
+  "slime.field.centerX": "中心 X",
+  "slime.field.centerZ": "中心 Z",
+  "slime.field.radius": "搜尋半徑",
+  "slime.field.ringInner": "圓環內徑",
+  "slime.field.ringOuter": "圓環外徑",
+  "slime.field.simDistance": "模擬距離",
+  "slime.field.mode": "搜尋模式",
+  "slime.field.topN": "結果數量",
+  "slime.field.nms": "結果間距",
+  "slime.field.samples": "取樣次數",
+  "slime.field.exactLimit": "精確掃描上限",
+  "slime.field.perimeter": "空置域邊長",
+
+  "slime.history.title": "最近使用",
+  "slime.history.empty": "沒有符合的歷史種子",
+  "slime.history.clear": "清除記錄",
+
+  "slime.unit.block": "格",
+  "slime.unit.chunk": "區塊",
+
+  "slime.mode.auto": "自動",
+  "slime.mode.exact": "精確掃描",
+  "slime.mode.sample": "取樣搜尋",
+
+  "slime.action.start": "開始尋找",
+  "slime.action.stop": "停止",
+  "slime.action.export": "匯出 CSV",
+  "slime.action.copy": "複製",
+  "slime.action.heat": "熱力圖",
+  "slime.action.locate": "定位",
+  "slime.action.results": "結果",
+  "slime.action.perimeter": "空置域推薦",
+  "slime.action.reset": "復位",
+
+  "slime.state.idle": "就緒",
+  "slime.state.running": "尋找中",
+  "slime.state.done": "已完成",
+  "slime.state.aborted": "已停止",
+  "slime.state.error": "出錯",
+
+  "slime.progress.scanning": "已掃 {done} / {total} 區塊",
+  "slime.progress.elapsed": "用時 {seconds}s",
+  "slime.progress.best": "目前最高 {score} / 環面積 {area} 格²",
+  "slime.progress.percentile": "超過 {pct}% 的隨機取樣點",
+
+  "slime.msg.notNumber": "「{label}」不是有效數字",
+  "slime.msg.badRadius": "搜尋半徑必須大於 0",
+  "slime.msg.outOfWorld": "搜尋範圍超出世界邊界（±30,000,000）",
+  "slime.msg.started": "已開始尋找",
+  "slime.msg.stopping": "正在停止…",
+  "slime.msg.done": "完成：{n} 個結果，用時 {seconds}s",
+  "slime.msg.empty": "沒有找到結果",
+  "slime.msg.aborted": "已停止",
+  "slime.msg.noResults": "還沒有可匯出的結果",
+  "slime.msg.exported": "結果已匯出",
+  "slime.msg.perimeterNoSelection": "請先在結果裡選擇一個掛機點",
+  "slime.msg.perimeterTooSmall": "空置域邊長 {size} 區塊太小，至少需要 {min}×{min} 區塊才能覆蓋 {outer} 格圓環",
+
+  "slime.empty.map": "開始尋找後在這裡顯示區塊地圖",
+  "slime.empty.results": "還沒有結果",
+
+  "slime.legend.slime": "史萊姆區塊",
+  "slime.legend.normal": "普通區塊",
+  "slime.legend.marker": "掛機點",
+  "slime.legend.ring": "24 / 128 圓環",
+
+  "slime.hover.chunk": "區塊",
+  "slime.hover.block": "方塊",
+
+  "slime.perimeter.title": "空置域 {size}×{size}",
+  "slime.perimeter.label": "空置域 {size}×{size}",
+  "slime.perimeter.chunks": "區塊範圍",
+  "slime.perimeter.nw": "西北",
+  "slime.perimeter.ne": "東北",
+  "slime.perimeter.sw": "西南",
+  "slime.perimeter.se": "東南",
+
+  "slime.hint.seed": "支援數字或文字種子（例如 hello），文字依 Java 規則換算",
+  "slime.hint.radius": "以中心為原點向四周擴展的格數；30,000,000 約等於全圖",
+  "slime.hint.exactLimit": "超過「精確掃描上限」（預設 16,777,216 區塊）會自動改為取樣搜尋（不保證全域最優）",
+  "slime.hint.exactLimitSetting": "允許精確掃描的最大區塊數；預設 16,777,216（4096×4096），調大能涵蓋更大範圍但更慢",
+  "slime.hint.perimeter": "預設 21×21 區塊；必須覆蓋刷怪圓環，太小時會提示",
+
+  "slime.col.chunk": "區塊",
+  "slime.col.score": "得分",
+  "slime.col.coverage": "覆蓋率",
+
+  "slime.settings.query": "尋找參數"
+}
