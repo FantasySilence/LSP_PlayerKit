@@ -53,7 +53,7 @@ The latest build is shared on Baidu Netdisk:
 
 | Item | Value |
 |---|---|
-| Current version | **v1.3.0** |
+| Current version | **v1.3.1** |
 | Link | <https://pan.baidu.com/s/1V3FcoPrWUt3bGQZ-vHqBZg?pwd=1234> |
 | Access code | `1234` |
 
@@ -366,7 +366,7 @@ Results are sorted by slime-chunk block area inside the ring, with **non-maximum
 ### 6.3 Large areas and performance
 
 - **Exact scan**: vectorised slime bitmap plus FFT convolution; 1000×1000 chunks (~1M) takes about a second, 10000×10000 chunks (100M, 160k×160k blocks) about 10 seconds on the development machine;
-- **The exact scan has no limit by default**: any area is scanned exactly (in the background, stoppable). To cap run time, set a chunk limit in **Settings → Slime Chunk Finder** (0 = unlimited); larger areas then switch to **sampled search** (50,000 random points, hill climbing and per-chunk refinement, with the percentile among random samples). 8192×8192 takes about 9 seconds here. Larger areas switch to **sampled search**: 50,000 random points, hill climbing and per-chunk refinement, reported with the percentile among random samples;
+- **The exact scan has no limit by default**: any area is scanned exactly (in the background, stoppable). To cap run time, set a chunk limit in **Settings → Slime Chunk Finder** (0 = unlimited); larger areas then switch to **sampled search** (50,000 random points, hill climbing and per-chunk refinement, with the percentile among random samples). 8192×8192 takes about 9 seconds here;
 - The full 60M×60M world is 1.4×10¹³ chunks and cannot be enumerated; without a limit an exact scan simply takes longer (background, stoppable). Set a limit to switch to sampled search automatically. Sampled search returns the best point within the budget, not a proven global optimum; narrow the area for an exact scan.
 
 ### 6.4 Settings
