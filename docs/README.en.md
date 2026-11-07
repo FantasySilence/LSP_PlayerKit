@@ -410,7 +410,13 @@ Boxes per bot, bots per batch and the bot name template, plus the run options (a
 
 ![Puppet Logistics settings](../README_img/en/14-settings-puppet.png)
 
-### 7.5 Data & storage
+### 7.5 Slime Chunk Finder
+
+Default world seed, center X / Z, exact-scan limit and perimeter size, plus the ring inner / outer radii, simulation distance, result count, result spacing, search mode and sample count. Full list: [6.4 Settings](#64-settings).
+
+![Slime Chunk Finder settings](../README_img/en/19-settings-slime.png)
+
+### 7.6 Data & storage
 
 The **Data & storage** tab shows or changes the data folder, opens it, and exports/imports a settings bundle.
 
@@ -421,7 +427,7 @@ The **Data & storage** tab shows or changes the data folder, opens it, and expor
 
 ![Data & storage](../README_img/en/4-storage.png)
 
-### 7.6 About
+### 7.7 About
 
 The **About** tab shows the version, stack, privacy note and license, with shortcuts to the manual (the Chinese/English README as PDF) and the GitHub repository.
 
